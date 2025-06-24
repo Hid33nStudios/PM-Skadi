@@ -47,7 +47,7 @@ class AppTheme {
         fontSize: 20,
       ),
     ),
-    cardTheme: CardTheme(
+    cardTheme: CardThemeData(
       color: _whiteColor,
       elevation: 4,
       shape: RoundedRectangleBorder(
@@ -182,7 +182,7 @@ class AppTheme {
         fontSize: 20,
       ),
     ),
-    cardTheme: CardTheme(
+    cardTheme: CardThemeData(
       color: _darkGrayColor,
       elevation: 4,
       shape: RoundedRectangleBorder(
