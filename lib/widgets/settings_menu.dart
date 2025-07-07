@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../viewmodels/theme_viewmodel.dart';
 import '../viewmodels/sync_viewmodel.dart';
 import '../viewmodels/migration_viewmodel.dart';
 import '../widgets/sync_status_widget.dart';
 import '../config/app_config.dart';
+import '../router/app_router.dart';
 
 class SettingsMenu extends StatelessWidget {
   const SettingsMenu({Key? key}) : super(key: key);
@@ -85,7 +87,7 @@ class SettingsMenu extends StatelessWidget {
         _showSyncStatus(context);
         break;
       case 'migration':
-        Navigator.pushNamed(context, '/migration');
+        context.goToMigration();
         break;
       case 'force_sync':
         _forceSync(context);

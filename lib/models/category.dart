@@ -35,6 +35,7 @@ class Category {
 
   Map<String, dynamic> toMap() {
     return {
+      'id': id,
       'name': name,
       'description': description,
       'createdAt': createdAt.toIso8601String(),

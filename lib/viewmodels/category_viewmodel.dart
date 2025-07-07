@@ -23,25 +23,36 @@ class CategoryViewModel extends foundation.ChangeNotifier {
   String? get error => _error;
 
   Future<void> loadCategories() async {
+    if (_isLoading) {
+      print('⚠️ CategoryViewModel: Ya está cargando categorías, ignorando llamada');
+      return; // Evitar múltiples llamadas simultáneas
+    }
+    
     try {
       _isLoading = true;
       _error = null;
       notifyListeners();
 
       print('🔄 Cargando categorías');
+      print('📊 CategoryViewModel: Usando servicio: ${_dataService.runtimeType}');
       
       _categories = await _dataService.getAllCategories();
+      print('📊 CategoryViewModel: Categorías obtenidas del servicio: ${_categories.length}');
       
       print('📊 Categorías cargadas: ${_categories.length}');
-      for (var category in _categories) {
-        print('  - ${category.name} (ID: ${category.id})');
+      if (_categories.isEmpty) {
+        print('⚠️  No se encontraron categorías');
+      } else {
+        for (var category in _categories) {
+          print('  - ${category.name} (ID: ${category.id})');
+        }
       }
       
       await _loadCategoryStats();
-      _isLoading = false;
-      notifyListeners();
     } catch (e, stackTrace) {
+      print('❌ CategoryViewModel: Error cargando categorías: $e');
       _error = AppError.fromException(e, stackTrace).message;
+    } finally {
       _isLoading = false;
       notifyListeners();
     }
@@ -58,11 +69,9 @@ class CategoryViewModel extends foundation.ChangeNotifier {
       if (_selectedCategory == null) {
         _error = 'Categoría no encontrada';
       }
-      
-      _isLoading = false;
-      notifyListeners();
     } catch (e, stackTrace) {
       _error = AppError.fromException(e, stackTrace).message;
+    } finally {
       _isLoading = false;
       notifyListeners();
     }
@@ -71,12 +80,21 @@ class CategoryViewModel extends foundation.ChangeNotifier {
   Future<bool> addCategory(Category category) async {
     try {
       print('🔄 CategoryViewModel: Agregando categoría: ${category.name}');
+      print('📝 CategoryViewModel: Datos de la categoría: ${category.toMap()}');
       
       await _dataService.createCategory(category);
-      await loadCategories();
-      print('✅ CategoryViewModel: Categoría agregada exitosamente');
+      print('✅ CategoryViewModel: Categoría creada en servicio de datos');
+      
+      // Recargar categorías de forma asíncrona para evitar problemas de build
+      Future.microtask(() async {
+        await loadCategories();
+        print('✅ CategoryViewModel: Categorías recargadas');
+        print('📊 CategoryViewModel: Total de categorías después de agregar: ${_categories.length}');
+      });
+      
       return true;
     } catch (e, stackTrace) {
+      print('❌ CategoryViewModel: Error al agregar categoría: $e');
       _error = AppError.fromException(e, stackTrace).message;
       notifyListeners();
       return false;
@@ -88,8 +106,13 @@ class CategoryViewModel extends foundation.ChangeNotifier {
       print('🔄 CategoryViewModel: Actualizando categoría: ${category.name}');
       
       await _dataService.updateCategory(category);
-      await loadCategories();
-      print('✅ CategoryViewModel: Categoría actualizada exitosamente');
+      
+      // Recargar categorías de forma asíncrona
+      Future.microtask(() async {
+        await loadCategories();
+        print('✅ CategoryViewModel: Categoría actualizada exitosamente');
+      });
+      
       return true;
     } catch (e, stackTrace) {
       _error = AppError.fromException(e, stackTrace).message;
@@ -103,8 +126,13 @@ class CategoryViewModel extends foundation.ChangeNotifier {
       print('🔄 CategoryViewModel: Eliminando categoría con ID: $id');
       
       await _dataService.deleteCategory(id);
-      await loadCategories();
-      print('✅ CategoryViewModel: Categoría eliminada exitosamente');
+      
+      // Recargar categorías de forma asíncrona
+      Future.microtask(() async {
+        await loadCategories();
+        print('✅ CategoryViewModel: Categoría eliminada exitosamente');
+      });
+      
       return true;
     } catch (e, stackTrace) {
       _error = AppError.fromException(e, stackTrace).message;

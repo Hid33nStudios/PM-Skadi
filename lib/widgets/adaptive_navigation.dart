@@ -5,6 +5,7 @@ import '../screens/category_management_screen.dart';
 import '../screens/movement_history_screen.dart';
 import '../screens/sales_screen.dart';
 import '../services/auth_service.dart';
+import '../router/app_router.dart';
 import 'theme_switch.dart';
 
 class AdaptiveNavigation extends StatelessWidget {
@@ -22,7 +23,7 @@ class AdaptiveNavigation extends StatelessWidget {
       final authService = AuthService();
       await authService.signOut();
       if (context.mounted) {
-        Navigator.of(context).pushReplacementNamed('/login');
+        context.goToLogin();
       }
     } catch (e) {
       if (context.mounted) {

@@ -259,7 +259,6 @@ class StockDatabase extends _$StockDatabase {
       id: result.id,
       name: result.name,
       description: result.description ?? '',
-      color: result.color,
       createdAt: result.createdAt,
       updatedAt: result.updatedAt,
     );
@@ -270,7 +269,7 @@ class StockDatabase extends _$StockDatabase {
       id: category.id,
       name: category.name,
       description: Value(category.description),
-      color: Value(category.color),
+      color: const Value(null), // El modelo Category no tiene color
       createdAt: category.createdAt,
       updatedAt: category.updatedAt,
     ));
@@ -282,7 +281,7 @@ class StockDatabase extends _$StockDatabase {
           id: category.id,
           name: category.name,
           description: Value(category.description),
-          color: Value(category.color),
+          color: const Value(null), // El modelo Category no tiene color
           createdAt: category.createdAt,
           updatedAt: category.updatedAt,
         ));

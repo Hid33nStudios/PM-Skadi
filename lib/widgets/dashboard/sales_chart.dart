@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:provider/provider.dart';
-import '../../viewmodels/sale_viewmodel.dart';
+import '../../viewmodels/dashboard_viewmodel.dart';
 
 class SalesChart extends StatelessWidget {
   const SalesChart({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<SaleViewModel>(
+    return Consumer<DashboardViewModel>(
       builder: (context, viewModel, _) {
         if (viewModel.isLoading) {
           return const Center(child: CircularProgressIndicator());
@@ -23,7 +23,12 @@ class SalesChart extends StatelessWidget {
           );
         }
 
-        final sales = viewModel.sales;
+        final data = viewModel.dashboardData;
+        if (data == null) {
+          return const Center(child: Text('No hay datos disponibles'));
+        }
+
+        final sales = data.sales;
         if (sales.isEmpty) {
           return const Center(
             child: Text('No hay datos de ventas disponibles'),

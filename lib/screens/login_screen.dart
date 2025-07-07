@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import 'dart:ui';
 import '../viewmodels/auth_viewmodel.dart';
 import '../widgets/loading_overlay.dart';
-import '../widgets/page_transition.dart';
 import '../widgets/custom_snackbar.dart';
-import 'register_screen.dart';
+import '../widgets/responsive_form.dart';
+import '../theme/responsive.dart';
+import '../router/app_router.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -25,11 +25,11 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
 
   late final AnimationController _mainAnimationController;
   late final AnimationController _glowAnimationController;
+  late final AnimationController _pulseAnimationController;
 
-  late final Animation<double> _formAnimation;
-  late final Animation<double> _stockcitoAnimation;
   late final Animation<double> _logoAnimation;
-  late final Animation<double> _ampersandAnimation;
+  late final Animation<double> _backgroundAnimation;
+  late final Animation<double> _pulseAnimation;
 
   @override
   void initState() {
@@ -44,10 +44,14 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
       duration: const Duration(seconds: 2),
     )..repeat(reverse: true);
 
-    _stockcitoAnimation = _createAnimation(0.0, 0.5);
-    _logoAnimation = _createAnimation(0.2, 0.7);
-    _ampersandAnimation = _createAnimation(0.4, 0.9);
-    _formAnimation = _createAnimation(0.5, 1.0);
+    _pulseAnimationController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 3),
+    )..repeat(reverse: true);
+
+    _logoAnimation = _createAnimation(0.0, 0.6);
+    _backgroundAnimation = _createAnimation(0.2, 0.8);
+    _pulseAnimation = _pulseAnimationController;
 
     _mainAnimationController.forward();
   }
@@ -63,6 +67,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
   void dispose() {
     _mainAnimationController.dispose();
     _glowAnimationController.dispose();
+    _pulseAnimationController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -82,7 +87,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
           context: context,
           message: '¡Bienvenido a Planeta Motos!',
         );
-        Navigator.of(context).pushReplacementNamed('/home');
+        context.goToDashboard();
       }
     } catch (e) {
       if (mounted) {
@@ -96,357 +101,788 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isSmallScreen = MediaQuery.of(context).size.width < 800;
-
-    return Scaffold(
-      body: LoadingOverlay(
-        isLoading: _isLoading,
-        child: Row(
-          children: [
-            if (!isSmallScreen)
+  /// Construye el formulario de login responsive
+  Widget _buildLoginForm(ThemeData theme) {
+    return Form(
+      key: _formKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Campo de email
+          ResponsiveFormField(
+            label: 'Correo Electrónico',
+            isRequired: true,
+            helperText: 'Ingresa tu correo electrónico registrado',
+            prefix: Icon(Icons.email_outlined, color: theme.primaryColor),
+            child: TextFormField(
+              controller: _emailController,
+              decoration: const InputDecoration(
+                hintText: 'ejemplo@planetamotos.com',
+                prefixIcon: Icon(Icons.email_outlined),
+                border: OutlineInputBorder(),
+              ),
+              keyboardType: TextInputType.emailAddress,
+              validator: (value) => value == null || value.trim().isEmpty 
+                  ? 'Por favor, ingresa tu email' 
+                  : null,
+            ),
+          ),
+          
+          SizedBox(height: Responsive.getResponsiveSpacing(context)),
+          
+          // Campo de contraseña
+          ResponsiveFormField(
+            label: 'Contraseña',
+            isRequired: true,
+            helperText: 'Ingresa tu contraseña',
+            prefix: Icon(Icons.lock_outline, color: theme.primaryColor),
+            child: TextFormField(
+              controller: _passwordController,
+              obscureText: _obscurePassword,
+              decoration: InputDecoration(
+                hintText: 'Tu contraseña segura',
+                prefixIcon: const Icon(Icons.lock_outline),
+                suffixIcon: IconButton(
+                  icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
+                  onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                ),
+                border: const OutlineInputBorder(),
+              ),
+              validator: (value) => value == null || value.trim().isEmpty 
+                  ? 'Por favor, ingresa tu contraseña' 
+                  : null,
+            ),
+          ),
+          
+          SizedBox(height: Responsive.getResponsiveSpacing(context)),
+          
+          // Checkbox y enlace
+          Row(
+            children: [
+              Checkbox(
+                value: _rememberUser,
+                onChanged: (value) {
+                  setState(() {
+                    _rememberUser = value ?? false;
+                  });
+                },
+                activeColor: theme.primaryColor,
+              ),
               Expanded(
-                child: AnimatedBuilder(
-                  animation: _mainAnimationController,
-                  builder: (context, child) => Container(
-                    color: Colors.black,
-                    child: _DynamicDotBackground(child: child!),
-                  ),
-                  child: Center(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 48.0, vertical: 24.0),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          _AnimatedLoginComponent(
-                            animation: _stockcitoAnimation,
-                            child: Image.asset(
-                              'assets/images/logs.png',
-                              height: 200,
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          _AnimatedLoginComponent(
-                            animation: _ampersandAnimation,
-                            child: AnimatedBuilder(
-                              animation: _glowAnimationController,
-                              builder: (context, child) {
-                                return Container(
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    boxShadow: [
-                                      for (int i = 1; i <= 2; i++)
-                                        BoxShadow(
-                                          color: theme.primaryColor.withOpacity(
-                                            0.5 * _glowAnimationController.value,
-                                          ),
-                                          spreadRadius: i * 5.0 * _glowAnimationController.value,
-                                          blurRadius: 20.0,
-                                        ),
-                                    ],
-                                  ),
-                                  child: child,
-                                );
-                              },
-                              child: Text(
-                                '&',
-                                style: theme.textTheme.displayMedium?.copyWith(
-                                  color: theme.primaryColor.withOpacity(0.9),
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          _AnimatedLoginComponent(
-                            animation: _logoAnimation,
-                            fromOffset: const Offset(0, 0.2),
-                            child: Image.asset(
-                              'assets/images/logo.png',
-                              height: 280,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                child: Text(
+                  'Recordar mi usuario',
+                  style: TextStyle(
+                    color: Responsive.isMobile(context) 
+                        ? Colors.white 
+                        : theme.colorScheme.onSurface.withValues(alpha: 0.8),
+                    fontSize: Responsive.getResponsiveFontSize(context, 14),
                   ),
                 ),
               ),
-            Expanded(
-              child: Container(
-                color: theme.colorScheme.surface,
-                child: Center(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(32.0),
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 400),
-                      child: _AnimatedLoginComponent(
-                        animation: _formAnimation,
-                        fromOffset: const Offset(0.2, 0),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            if (isSmallScreen) ...[
-                              Image.asset(
-                                'assets/images/logo.png',
-                                height: 120,
-                              ),
-                              const SizedBox(height: 32),
-                            ],
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                Text(
-                                  'Bienvenido a',
-                                  style: theme.textTheme.headlineSmall?.copyWith(
-                                    fontWeight: FontWeight.w300,
-                                    color: theme.colorScheme.onSurface.withOpacity(0.8),
-                                  ),
-                                ),
-                                Text(
-                                  'Planeta Motos',
-                                  style: theme.textTheme.displaySmall?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    color: theme.primaryColor,
-                                    height: 1.2,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  'Gestión Inteligente de Stock',
-                                  style: theme.textTheme.bodyLarge?.copyWith(
-                                    fontWeight: FontWeight.w500,
-                                    color: theme.colorScheme.onSurface.withOpacity(0.7),
-                                    fontStyle: FontStyle.italic,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 40),
-                            Form(
-                              key: _formKey,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  TextFormField(
-                                    controller: _emailController,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Email',
-                                      prefixIcon: Icon(Icons.email_outlined),
-                                      border: OutlineInputBorder(),
-                                    ),
-                                    keyboardType: TextInputType.emailAddress,
-                                    validator: (value) => value == null || value.trim().isEmpty ? 'Por favor, ingresa tu email' : null,
-                                  ),
-                                  const SizedBox(height: 20),
-                                  TextFormField(
-                                    controller: _passwordController,
-                                    obscureText: _obscurePassword,
-                                    decoration: InputDecoration(
-                                      labelText: 'Contraseña',
-                                      prefixIcon: const Icon(Icons.lock_outline),
-                                      suffixIcon: IconButton(
-                                        icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
-                                        onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
-                                      ),
-                                      border: const OutlineInputBorder(),
-                                    ),
-                                    validator: (value) => value == null || value.trim().isEmpty ? 'Por favor, ingresa tu contraseña' : null,
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Row(
-                                    children: [
-                                      Checkbox(
-                                        value: _rememberUser,
-                                        onChanged: (value) {
-                                          setState(() {
-                                            _rememberUser = value ?? false;
-                                          });
-                                        },
-                                        activeColor: theme.primaryColor,
-                                      ),
-                                      Expanded(
-                                        child: Text(
-                                          'Recordar mi usuario',
-                                          style: TextStyle(
-                                            color: theme.colorScheme.onSurface.withOpacity(0.8),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Align(
-                                    alignment: Alignment.centerRight,
-                                    child: TextButton(
-                                      onPressed: () => CustomSnackBar.showInfo(
-                                        context: context,
-                                        message: 'Funcionalidad de recuperación en desarrollo.',
-                                      ),
-                                      child: Text(
-                                        '¿Olvidaste tu contraseña?',
-                                        style: TextStyle(color: theme.primaryColor),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 20),
-                                  ElevatedButton(
-                                    onPressed: _signIn,
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: theme.primaryColor,
-                                      foregroundColor: Colors.black,
-                                      padding: const EdgeInsets.symmetric(vertical: 16),
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                    ),
-                                    child: const Text(
-                                      'Iniciar Sesión',
-                                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 24),
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Text(
-                                        '¿No tienes una cuenta?',
-                                        style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6)),
-                                      ),
-                                      TextButton(
-                                        onPressed: () => Navigator.of(context).push(
-                                          ElegantPageRoute(
-                                            child: const RegisterScreen(),
-                                            isForward: true,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          'Regístrate',
-                                          style: TextStyle(color: theme.primaryColor, fontWeight: FontWeight.bold),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 48),
-                            Column(
-                              children: [
-                                Text(
-                                  'De Stockcito para Planeta Motos',
-                                  textAlign: TextAlign.center,
-                                  style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurface.withOpacity(0.5)),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Desarrollado por Hid33n-Studiios © ${DateTime.now().year}',
-                                  textAlign: TextAlign.center,
-                                  style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurface.withOpacity(0.5)),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 20),
-                            _AnimatedLoginComponent(
-                              animation: _formAnimation,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    colors: [Colors.yellow, Colors.orange],
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                  ),
-                                  borderRadius: BorderRadius.circular(20),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.yellow.withOpacity(0.4),
-                                      spreadRadius: 2,
-                                      blurRadius: 8,
-                                    ),
-                                  ],
-                                ),
-                                child: Text(
-                                  'Versión Única',
-                                  style: GoogleFonts.bebasNeue(
-                                    color: Colors.black,
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
+              TextButton(
+                onPressed: () => CustomSnackBar.showInfo(
+                  context: context,
+                  message: 'Funcionalidad de recuperación en desarrollo.',
+                ),
+                child: Text(
+                  '¿Olvidaste tu contraseña?',
+                  style: TextStyle(
+                    color: theme.primaryColor,
+                    fontSize: Responsive.getResponsiveFontSize(context, 14),
                   ),
                 ),
+              ),
+            ],
+          ),
+          
+          SizedBox(height: Responsive.getResponsiveSpacing(context) * 2),
+          
+          // Botón de iniciar sesión
+          ElevatedButton.icon(
+            onPressed: _isLoading ? null : _signIn,
+            icon: _isLoading
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.login),
+            label: Text(
+              _isLoading ? 'Iniciando...' : 'Iniciar Sesión',
+              style: TextStyle(
+                fontSize: Responsive.getResponsiveFontSize(context, 16),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            style: ElevatedButton.styleFrom(
+              padding: EdgeInsets.symmetric(
+                vertical: Responsive.getResponsiveSpacing(context) * 1.5,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+          
+          SizedBox(height: Responsive.getResponsiveSpacing(context) * 2),
+          
+          // Enlace para registro
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                '¿No tienes cuenta? ',
+                style: TextStyle(
+                  color: Responsive.isMobile(context) 
+                      ? Colors.white 
+                      : theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                  fontSize: Responsive.getResponsiveFontSize(context, 14),
+                ),
+              ),
+              TextButton(
+                onPressed: () => context.goToRegister(),
+                child: Text(
+                  'Regístrate aquí',
+                  style: TextStyle(
+                    color: theme.primaryColor,
+                    fontSize: Responsive.getResponsiveFontSize(context, 14),
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Construye el header con logo y título
+  Widget _buildHeader(ThemeData theme) {
+    return Column(
+      children: [
+        // Logo animado
+        AnimatedBuilder(
+          animation: _pulseAnimation,
+          builder: (context, child) {
+            return Transform.scale(
+              scale: 1.0 + (_pulseAnimation.value * 0.05),
+              child: Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: theme.primaryColor.withValues(alpha: 0.2),
+                      blurRadius: 20,
+                      spreadRadius: 5,
+                    ),
+                  ],
+                ),
+                child: Image.asset(
+                  'assets/images/logo.png',
+                  height: 120,
+                ),
+              ),
+            );
+          },
+        ),
+        
+        SizedBox(height: Responsive.getResponsiveSpacing(context) * 1.5),
+        
+        // Títulos
+        Column(
+          children: [
+            Text(
+              'Bienvenido a',
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w300,
+                color: Colors.white.withValues(alpha: 0.8),
+                fontSize: Responsive.getResponsiveFontSize(context, 18),
+              ),
+            ),
+            Text(
+              'Planeta Motos',
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.bold,
+                color: theme.primaryColor,
+                height: 1.2,
+                fontSize: Responsive.getResponsiveFontSize(context, 24),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Gestión Inteligente de Stock',
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w500,
+                color: Colors.white.withValues(alpha: 0.7),
+                fontStyle: FontStyle.italic,
+                fontSize: Responsive.getResponsiveFontSize(context, 14),
               ),
             ),
           ],
         ),
+      ],
+    );
+  }
+
+  /// Construye el footer con información de copyright
+  Widget _buildFooter(ThemeData theme) {
+    return Column(
+      children: [
+        Text(
+          'De Stockcito para Planeta Motos',
+          textAlign: TextAlign.center,
+          style: GoogleFonts.poppins(
+            color: Colors.white.withValues(alpha: 0.5),
+            fontSize: Responsive.getResponsiveFontSize(context, 11),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Desarrollado por Hid33n-Studiios © ${DateTime.now().year}',
+          textAlign: TextAlign.center,
+          style: GoogleFonts.poppins(
+            color: Colors.white.withValues(alpha: 0.5),
+            fontSize: Responsive.getResponsiveFontSize(context, 11),
+          ),
+        ),
+        const SizedBox(height: 12),
+        // Badge de versión
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Colors.yellow, Colors.orange],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.yellow.withValues(alpha: 0.4),
+                spreadRadius: 1,
+                blurRadius: 4,
+              ),
+            ],
+          ),
+          child: Text(
+            'Versión Única',
+            style: GoogleFonts.bebasNeue(
+              color: Colors.black,
+              fontSize: Responsive.getResponsiveFontSize(context, 14),
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Construye el panel lateral para desktop
+  Widget _buildSidePanel(ThemeData theme, bool isLargeDesktop) {
+    return Container(
+      color: Colors.black,
+      child: Stack(
+        children: [
+          // Fondo animado con puntos
+          AnimatedBuilder(
+            animation: _backgroundAnimation,
+            builder: (context, child) {
+              return CustomPaint(
+                painter: _DotPainter(animation: _glowAnimationController),
+                child: Container(),
+              );
+            },
+          ),
+          // Contenido del panel
+          Center(
+            child: Padding(
+              padding: EdgeInsets.all(Responsive.getResponsiveSpacing(context) * 2),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Logo grande
+                  AnimatedBuilder(
+                    animation: _logoAnimation,
+                    builder: (context, child) {
+                      return FadeTransition(
+                        opacity: _logoAnimation,
+                        child: SlideTransition(
+                          position: Tween<Offset>(
+                            begin: const Offset(0, -0.2),
+                            end: Offset.zero,
+                          ).animate(_logoAnimation),
+                          child: Image.asset(
+                            'assets/images/logs.png',
+                            height: isLargeDesktop ? 180 : 140,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  
+                  SizedBox(height: Responsive.getResponsiveSpacing(context) * 1.5),
+                  
+                  // Símbolo &
+                  AnimatedBuilder(
+                    animation: _glowAnimationController,
+                    builder: (context, child) {
+                      return Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            for (int i = 1; i <= 2; i++)
+                              BoxShadow(
+                                color: theme.primaryColor.withValues(
+                                  alpha: 0.3 * _glowAnimationController.value,
+                                ),
+                                spreadRadius: i * 6.0 * _glowAnimationController.value,
+                                blurRadius: 20.0,
+                              ),
+                          ],
+                        ),
+                        child: Text(
+                          '&',
+                          style: theme.textTheme.displayLarge?.copyWith(
+                            color: theme.primaryColor.withValues(alpha: 0.9),
+                            fontWeight: FontWeight.bold,
+                            fontSize: Responsive.getResponsiveFontSize(context, 36),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  
+                  SizedBox(height: Responsive.getResponsiveSpacing(context) * 1.5),
+                  
+                  // Logo principal
+                  AnimatedBuilder(
+                    animation: _logoAnimation,
+                    builder: (context, child) {
+                      return FadeTransition(
+                        opacity: _logoAnimation,
+                        child: SlideTransition(
+                          position: Tween<Offset>(
+                            begin: const Offset(0, 0.2),
+                            end: Offset.zero,
+                          ).animate(_logoAnimation),
+                          child: Image.asset(
+                            'assets/images/logo.png',
+                            height: isLargeDesktop ? 220 : 180,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  
+                  if (isLargeDesktop) ...[
+                    SizedBox(height: Responsive.getResponsiveSpacing(context) * 2),
+                    Text(
+                      'Sistema de Gestión de Inventario',
+                      style: theme.textTheme.headlineMedium?.copyWith(
+                        color: Colors.white.withValues(alpha: 0.9),
+                        fontWeight: FontWeight.w300,
+                        fontSize: Responsive.getResponsiveFontSize(context, 20),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Control total de tu negocio',
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        color: Colors.white.withValues(alpha: 0.7),
+                        fontStyle: FontStyle.italic,
+                        fontSize: Responsive.getResponsiveFontSize(context, 16),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
-}
-
-class _AnimatedLoginComponent extends StatelessWidget {
-  final Animation<double> animation;
-  final Widget child;
-  final Offset fromOffset;
-
-  const _AnimatedLoginComponent({
-    required this.animation,
-    required this.child,
-    this.fromOffset = const Offset(0, -0.1),
-  });
 
   @override
   Widget build(BuildContext context) {
-    return FadeTransition(
-      opacity: animation,
-      child: SlideTransition(
-        position: Tween<Offset>(begin: fromOffset, end: Offset.zero).animate(animation),
-        child: child,
+    final theme = Theme.of(context);
+    final isMobile = Responsive.isMobile(context);
+    final isTablet = Responsive.isTablet(context);
+    final isDesktop = Responsive.isDesktop(context);
+    final isLargeDesktop = Responsive.isLargeDesktop(context);
+
+    return Scaffold(
+      body: LoadingOverlay(
+        isLoading: _isLoading,
+        child: isMobile 
+            ? _buildMobileLayout(theme)
+            : _buildDesktopLayout(theme, isTablet, isDesktop, isLargeDesktop),
       ),
     );
   }
-}
 
-class _DynamicDotBackground extends StatefulWidget {
-  final Widget child;
-  const _DynamicDotBackground({required this.child});
-
-  @override
-  State<_DynamicDotBackground> createState() => _DynamicDotBackgroundState();
-}
-
-class _DynamicDotBackgroundState extends State<_DynamicDotBackground> with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 25),
-    )..repeat();
+  /// Layout para móvil
+  Widget _buildMobileLayout(ThemeData theme) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.black,
+            Colors.black.withValues(alpha: 0.8),
+          ],
+        ),
+      ),
+      child: SafeArea(
+        child: Padding(
+          padding: EdgeInsets.all(Responsive.getResponsiveSpacing(context)),
+          child: Column(
+            children: [
+              // Header más compacto
+              _buildMobileHeader(theme),
+              const Spacer(flex: 1),
+              // Formulario compacto
+              _buildMobileLoginForm(theme),
+              const Spacer(flex: 1),
+              // Footer compacto
+              _buildMobileFooter(theme),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
+  /// Header optimizado para móvil
+  Widget _buildMobileHeader(ThemeData theme) {
+    return Column(
+      children: [
+        // Logo más pequeño
+        AnimatedBuilder(
+          animation: _pulseAnimation,
+          builder: (context, child) {
+            return Transform.scale(
+              scale: 1.0 + (_pulseAnimation.value * 0.03),
+              child: Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: theme.primaryColor.withValues(alpha: 0.2),
+                      blurRadius: 15,
+                      spreadRadius: 3,
+                    ),
+                  ],
+                ),
+                child: Image.asset(
+                  'assets/images/logo.png',
+                  height: 150,
+                ),
+              ),
+            );
+          },
+        ),
+        
+        SizedBox(height: Responsive.getResponsiveSpacing(context)),
+        
+        // Títulos más compactos
+        Column(
+          children: [
+            Text(
+              'Bienvenido a',
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w300,
+                color: Colors.white.withValues(alpha: 0.8),
+                fontSize: 16,
+              ),
+            ),
+            Text(
+              'Planeta Motos',
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.bold,
+                color: theme.primaryColor,
+                height: 1.1,
+                fontSize: 20,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Gestión Inteligente de Stock',
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w500,
+                color: Colors.white.withValues(alpha: 0.7),
+                fontStyle: FontStyle.italic,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      painter: _DotPainter(animation: _controller),
-      child: widget.child,
+  /// Formulario optimizado para móvil
+  Widget _buildMobileLoginForm(ThemeData theme) {
+    return Form(
+      key: _formKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Campo de email compacto
+          ResponsiveFormField(
+            label: 'Correo Electrónico',
+            isRequired: true,
+            helperText: 'Ingresa tu correo electrónico',
+            prefix: Icon(Icons.email_outlined, color: theme.primaryColor, size: 18),
+            child: TextFormField(
+              controller: _emailController,
+              decoration: const InputDecoration(
+                hintText: 'ejemplo@planetamotos.com',
+                prefixIcon: Icon(Icons.email_outlined),
+                border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              ),
+              keyboardType: TextInputType.emailAddress,
+              validator: (value) => value == null || value.trim().isEmpty 
+                  ? 'Por favor, ingresa tu email' 
+                  : null,
+            ),
+          ),
+          
+          SizedBox(height: Responsive.getResponsiveSpacing(context) * 0.5),
+          
+          // Campo de contraseña compacto
+          ResponsiveFormField(
+            label: 'Contraseña',
+            isRequired: true,
+            helperText: 'Ingresa tu contraseña',
+            prefix: Icon(Icons.lock_outline, color: theme.primaryColor, size: 18),
+            child: TextFormField(
+              controller: _passwordController,
+              obscureText: _obscurePassword,
+              decoration: InputDecoration(
+                hintText: 'Tu contraseña segura',
+                prefixIcon: const Icon(Icons.lock_outline),
+                suffixIcon: IconButton(
+                  icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
+                  onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                ),
+                border: const OutlineInputBorder(),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              ),
+              validator: (value) => value == null || value.trim().isEmpty 
+                  ? 'Por favor, ingresa tu contraseña' 
+                  : null,
+            ),
+          ),
+          
+          SizedBox(height: Responsive.getResponsiveSpacing(context) * 0.5),
+          
+          // Checkbox y enlace más compactos
+          Row(
+            children: [
+              Checkbox(
+                value: _rememberUser,
+                onChanged: (value) {
+                  setState(() {
+                    _rememberUser = value ?? false;
+                  });
+                },
+                activeColor: theme.primaryColor,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              Expanded(
+                child: Text(
+                  'Recordar mi usuario',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+              TextButton(
+                onPressed: () => CustomSnackBar.showInfo(
+                  context: context,
+                  message: 'Funcionalidad de recuperación en desarrollo.',
+                ),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: Text(
+                  '¿Olvidaste tu contraseña?',
+                  style: TextStyle(
+                    color: theme.primaryColor,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          
+          SizedBox(height: Responsive.getResponsiveSpacing(context)),
+          
+          // Botón de iniciar sesión compacto
+          ElevatedButton.icon(
+            onPressed: _isLoading ? null : _signIn,
+            icon: _isLoading
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.login, size: 18),
+            label: Text(
+              _isLoading ? 'Iniciando...' : 'Iniciar Sesión',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            style: ElevatedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+          
+          SizedBox(height: Responsive.getResponsiveSpacing(context)),
+          
+          // Enlace para registro compacto
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                '¿No tienes cuenta? ',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                ),
+              ),
+              TextButton(
+                onPressed: () => context.goToRegister(),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: Text(
+                  'Regístrate aquí',
+                  style: TextStyle(
+                    color: theme.primaryColor,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Footer optimizado para móvil
+  Widget _buildMobileFooter(ThemeData theme) {
+    return Column(
+      children: [
+        Text(
+          'De Stockcito para Planeta Motos',
+          textAlign: TextAlign.center,
+          style: GoogleFonts.poppins(
+            color: Colors.white.withValues(alpha: 0.5),
+            fontSize: 10,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          'Desarrollado por Hid33n-Studiios © ${DateTime.now().year}',
+          textAlign: TextAlign.center,
+          style: GoogleFonts.poppins(
+            color: Colors.white.withValues(alpha: 0.5),
+            fontSize: 10,
+          ),
+        ),
+        const SizedBox(height: 8),
+        // Badge de versión más pequeño
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Colors.yellow, Colors.orange],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.yellow.withValues(alpha: 0.4),
+                spreadRadius: 1,
+                blurRadius: 3,
+              ),
+            ],
+          ),
+          child: Text(
+            'Versión Única',
+            style: GoogleFonts.bebasNeue(
+              color: Colors.black,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Layout para desktop/tablet
+  Widget _buildDesktopLayout(ThemeData theme, bool isTablet, bool isDesktop, bool isLargeDesktop) {
+    return Row(
+      children: [
+        // Panel lateral (solo en desktop)
+        if (isDesktop || isLargeDesktop)
+          Expanded(
+            flex: isLargeDesktop ? 2 : 1,
+            child: _buildSidePanel(theme, isLargeDesktop),
+          ),
+        // Panel principal
+        Expanded(
+          flex: isLargeDesktop ? 3 : 2,
+          child: Container(
+            color: theme.colorScheme.surface,
+            child: Center(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.all(Responsive.getResponsiveSpacing(context) * 3),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: isLargeDesktop ? 600 : 500,
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Header (solo en tablet)
+                      if (isTablet) ...[
+                        _buildHeader(theme),
+                        SizedBox(height: Responsive.getResponsiveSpacing(context) * 4),
+                      ],
+                      // Formulario
+                      _buildLoginForm(theme),
+                      SizedBox(height: Responsive.getResponsiveSpacing(context) * 4),
+                      // Footer
+                      _buildFooter(theme),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -457,7 +893,7 @@ class _DotPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = Colors.white.withOpacity(0.04);
+    final paint = Paint()..color = Colors.white.withValues(alpha: 0.04);
     const double spacing = 40.0;
     final double offset = animation.value * spacing;
 

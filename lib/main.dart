@@ -28,9 +28,17 @@ import 'screens/add_sale_screen.dart';
 import 'screens/add_product_screen.dart';
 import 'screens/migration_screen.dart';
 import 'screens/barcode_scanner_screen.dart';
+import 'screens/category_management_screen.dart';
+import 'screens/movement_history_screen.dart';
+import 'screens/sales_history_screen.dart';
+import 'screens/product_list_screen.dart';
+import 'screens/edit_product_screen.dart';
+import 'screens/product_detail_screen.dart';
+import 'models/product.dart';
 import 'theme/app_theme.dart';
 import 'theme/theme_provider.dart';
 import 'widgets/app_initializer.dart';
+import 'router/app_router.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
 void main() async {
@@ -212,45 +220,13 @@ class MyApp extends StatelessWidget {
       child: AppInitializer(
         child: Consumer<ThemeViewModel>(
           builder: (context, themeViewModel, _) {
-            return MaterialApp(
+            return MaterialApp.router(
               title: 'Stockcito - Planeta Motos',
               debugShowCheckedModeBanner: false,
               theme: AppTheme.lightTheme,
               darkTheme: AppTheme.darkTheme,
               themeMode: themeViewModel.isDarkMode ? ThemeMode.dark : ThemeMode.light,
-              initialRoute: '/login',
-              onGenerateRoute: (settings) {
-                Widget page;
-                switch (settings.name) {
-                  case '/login':
-                    page = const LoginScreen();
-                    break;
-                  case '/register':
-                    page = const RegisterScreen();
-                    break;
-                  case '/home':
-                    page = HomeScreen();
-                    break;
-                  case '/add-sale':
-                    page = const AddSaleScreen();
-                    break;
-                  case '/add-product':
-                    page = const AddProductScreen();
-                    break;
-                  case '/migration':
-                    page = const MigrationScreen();
-                    break;
-                  case '/barcode-scanner':
-                    page = const BarcodeScannerScreen();
-                    break;
-                  default:
-                    page = const LoginScreen();
-                }
-                return MaterialPageRoute(
-                  builder: (context) => page,
-                  settings: settings,
-                );
-              },
+              routerConfig: AppRouter.router,
             );
           },
         ),

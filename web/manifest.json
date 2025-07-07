@@ -1,11 +1,11 @@
 {
-    "name": "stock",
-    "short_name": "stock",
+    "name": "Planeta Motos",
+    "short_name": "Planeta Motos",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#1A1A1A",
+    "theme_color": "#FFD700",
+    "description": "Sistema de Gestión de Inventario para Planeta Motos",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
