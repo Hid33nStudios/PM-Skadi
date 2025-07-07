@@ -226,18 +226,32 @@ class HybridDataService {
   /// Obtener todas las categorías
   Future<List<Category>> getAllCategories() async {
     try {
+      print('🔄 HybridDataService: Obteniendo categorías...');
+      print('📊 HybridDataService: Estado online: $_isOnline');
+      
       if (_isOnline) {
+        print('🔄 HybridDataService: Intentando obtener de Firebase...');
         final categories = await _firestoreService.getCategories();
+        print('📊 HybridDataService: Categorías obtenidas de Firebase: ${categories.length}');
+        
         // Guardar en local
         for (final category in categories) {
           await _localDatabase.insertCategory(category);
         }
+        print('✅ HybridDataService: Categorías guardadas en local');
         return categories;
       } else {
-        return await _localDatabase.getAllCategories();
+        print('🔄 HybridDataService: Modo offline, obteniendo de local...');
+        final categories = await _localDatabase.getAllCategories();
+        print('📊 HybridDataService: Categorías obtenidas de local: ${categories.length}');
+        return categories;
       }
     } catch (e) {
-      return await _localDatabase.getAllCategories();
+      print('❌ HybridDataService: Error obteniendo categorías: $e');
+      print('🔄 HybridDataService: Fallback a datos locales...');
+      final categories = await _localDatabase.getAllCategories();
+      print('📊 HybridDataService: Categorías de fallback: ${categories.length}');
+      return categories;
     }
   }
 
@@ -308,16 +322,62 @@ class HybridDataService {
 
   /// Crear venta
   Future<void> createSale(Sale sale) async {
-    await _localDatabase.insertSale(sale);
-    
-    if (_isOnline) {
-      try {
-        await _firestoreService.addSale(sale);
-      } catch (e) {
-        _addPendingOperation('createSale', sale.toMap());
+    try {
+      print('🔄 HybridDataService: Iniciando createSale...');
+      print('📝 HybridDataService: Datos de la venta: ${sale.toMap()}');
+      
+      // Obtener el producto para verificar stock disponible
+      final product = await getProductById(sale.productId);
+      if (product == null) {
+        throw Exception('Producto no encontrado: ${sale.productId}');
       }
-    } else {
-      _addPendingOperation('createSale', sale.toMap());
+      
+      // Verificar que hay suficiente stock
+      if (product.stock < sale.quantity) {
+        throw Exception('Stock insuficiente. Disponible: ${product.stock}, Solicitado: ${sale.quantity}');
+      }
+      
+      // Calcular nuevo stock
+      final newStock = product.stock - sale.quantity;
+      print('📊 HybridDataService: Stock actual: ${product.stock}, Cantidad vendida: ${sale.quantity}, Nuevo stock: $newStock');
+      
+      // Actualizar el producto con el nuevo stock
+      final updatedProduct = product.copyWith(
+        stock: newStock,
+        updatedAt: DateTime.now(),
+      );
+      
+      print('🔄 HybridDataService: Actualizando stock del producto...');
+      await updateProduct(updatedProduct);
+      print('✅ HybridDataService: Stock actualizado exitosamente');
+      
+      print('🔄 HybridDataService: Guardando en base de datos local...');
+      await _localDatabase.insertSale(sale);
+      print('✅ HybridDataService: Venta guardada en local');
+      
+      print('📊 HybridDataService: Estado online: $_isOnline');
+      
+      if (_isOnline) {
+        try {
+          print('🔄 HybridDataService: Intentando guardar en Firebase...');
+          await _firestoreService.addSale(sale);
+          print('✅ HybridDataService: Venta guardada en Firebase');
+        } catch (e) {
+          print('❌ HybridDataService: Error al guardar en Firebase: $e');
+          print('🔄 HybridDataService: Agregando a operaciones pendientes...');
+          _addPendingOperation('createSale', sale.toMap());
+          print('✅ HybridDataService: Operación agregada a pendientes');
+        }
+      } else {
+        print('🔄 HybridDataService: Modo offline, agregando a operaciones pendientes...');
+        _addPendingOperation('createSale', sale.toMap());
+        print('✅ HybridDataService: Operación agregada a pendientes');
+      }
+      
+      print('✅ HybridDataService: createSale completado exitosamente');
+    } catch (e) {
+      print('❌ HybridDataService: Error en createSale: $e');
+      rethrow;
     }
   }
 

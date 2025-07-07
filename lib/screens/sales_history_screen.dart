@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../viewmodels/sale_viewmodel.dart';
+import '../theme/responsive.dart';
+import '../widgets/responsive_form.dart';
 
 class SalesHistoryScreen extends StatefulWidget {
   const SalesHistoryScreen({super.key});
@@ -26,49 +28,110 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Historial de Ventas'),
-        actions: [
-          IconButton(
+      appBar: _buildResponsiveAppBar(),
+      body: _buildResponsiveBody(),
+    );
+  }
+
+  /// AppBar responsive
+  AppBar _buildResponsiveAppBar() {
+    return AppBar(
+      title: Text(
+        'Historial de Ventas',
+        style: TextStyle(
+          fontSize: Responsive.getResponsiveFontSize(context, 20),
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      actions: [
+        Padding(
+          padding: EdgeInsets.only(right: Responsive.getResponsiveSpacing(context)),
+          child: IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _loadSales,
             tooltip: 'Actualizar',
+            iconSize: Responsive.isMobile(context) ? 24 : 28,
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Cuerpo principal responsive
+  Widget _buildResponsiveBody() {
+    return Consumer<SaleViewModel>(
+      builder: (context, viewModel, child) {
+        if (viewModel.isLoading) {
+          return _buildLoadingState();
+        }
+
+        if (viewModel.error != null) {
+          return _buildErrorState(viewModel.error!);
+        }
+
+        return _buildSalesContent(viewModel);
+      },
+    );
+  }
+
+  /// Estado de carga responsive
+  Widget _buildLoadingState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          CircularProgressIndicator(
+            strokeWidth: Responsive.isMobile(context) ? 3 : 4,
+          ),
+          SizedBox(height: Responsive.getResponsiveSpacing(context)),
+          Text(
+            'Cargando historial de ventas...',
+            style: TextStyle(
+              fontSize: Responsive.getResponsiveFontSize(context, 16),
+              color: Colors.grey[600],
+            ),
           ),
         ],
       ),
-      body: Consumer<SaleViewModel>(
-        builder: (context, viewModel, child) {
-          if (viewModel.isLoading) {
-            return const Center(child: CircularProgressIndicator());
-          }
+    );
+  }
 
-          if (viewModel.error != null) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.error_outline,
-                    size: 64,
-                    color: Colors.red[300],
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    viewModel.error!,
-                    style: const TextStyle(fontSize: 16),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: _loadSales,
-                    child: const Text('Reintentar'),
-                  ),
-                ],
+  /// Estado de error responsive
+  Widget _buildErrorState(String error) {
+    return Center(
+      child: Padding(
+        padding: Responsive.getResponsivePadding(context),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.error_outline,
+              size: Responsive.isMobile(context) ? 48 : 64,
+              color: Colors.red[300],
+            ),
+            SizedBox(height: Responsive.getResponsiveSpacing(context)),
+            Text(
+              error,
+              style: TextStyle(
+                fontSize: Responsive.getResponsiveFontSize(context, 16),
               ),
-            );
-          }
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: Responsive.getResponsiveSpacing(context)),
+            ElevatedButton.icon(
+              onPressed: _loadSales,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Reintentar'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
-          return SingleChildScrollView(
+  /// Contenido principal de ventas responsive
+  Widget _buildSalesContent(SaleViewModel viewModel) {
+    return SingleChildScrollView(
             padding: const EdgeInsets.all(16.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -267,9 +330,7 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
               ],
             ),
           );
-        },
-      ),
-    );
+
   }
 
   Widget _buildDetailRow(String label, String value, {bool isTotal = false}) {
@@ -303,4 +364,4 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
       ),
     );
   }
-} 
+ }

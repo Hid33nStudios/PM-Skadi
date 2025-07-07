@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../viewmodels/product_viewmodel.dart';
-import '../../viewmodels/category_viewmodel.dart';
+import '../../viewmodels/dashboard_viewmodel.dart';
 import '../../models/category.dart';
 
 class CategoryDistribution extends StatelessWidget {
@@ -9,26 +8,34 @@ class CategoryDistribution extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer2<ProductViewModel, CategoryViewModel>(
-      builder: (context, productVM, categoryVM, _) {
-        if (productVM.isLoading || categoryVM.isLoading) {
+    return Consumer<DashboardViewModel>(
+      builder: (context, dashboardVM, _) {
+        if (dashboardVM.isLoading) {
           return const Center(child: CircularProgressIndicator());
         }
 
-        if (productVM.error != null || categoryVM.error != null) {
+        if (dashboardVM.error != null) {
           return Center(
             child: Text(
-              'Error: ${productVM.error ?? categoryVM.error}',
+              'Error: ${dashboardVM.error}',
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
           );
         }
 
+        final data = dashboardVM.dashboardData;
+        if (data == null) {
+          return const Center(child: Text('No hay datos disponibles'));
+        }
+
         // Agrupar productos por categoría
         final categoryCounts = <String, int>{};
-        for (var product in productVM.products) {
-          final category = categoryVM.categories
-              .firstWhere(
+        for (var product in data.products) {
+          String categoryName = 'Sin categoría';
+          
+          if (product.categoryId.isNotEmpty) {
+            try {
+              final category = data.categories.firstWhere(
                 (c) => c.id == product.categoryId,
                 orElse: () => Category(
                   id: 'default',
@@ -38,7 +45,13 @@ class CategoryDistribution extends StatelessWidget {
                   updatedAt: DateTime.now(),
                 ),
               );
-          categoryCounts[category.name] = (categoryCounts[category.name] ?? 0) + 1;
+              categoryName = category.name;
+            } catch (e) {
+              categoryName = 'Sin categoría';
+            }
+          }
+          
+          categoryCounts[categoryName] = (categoryCounts[categoryName] ?? 0) + 1;
         }
 
         return ListView.builder(

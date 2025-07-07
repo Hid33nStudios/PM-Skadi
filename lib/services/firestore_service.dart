@@ -78,11 +78,25 @@ class FirestoreService {
   // Métodos para Categorías
   Future<List<Category>> getCategories() async {
     try {
+      print('🔄 FirestoreService: Obteniendo categorías...');
+      print('📊 FirestoreService: UserID: $_userId');
+      print('📊 FirestoreService: Referencia: ${_userCategoriesRef.path}');
+      
       final snapshot = await _userCategoriesRef.get();
-      return snapshot.docs
+      print('📊 FirestoreService: Documentos encontrados: ${snapshot.docs.length}');
+      
+      final categories = snapshot.docs
           .map((doc) => Category.fromMap(doc.data() as Map<String, dynamic>, doc.id))
           .toList();
+      
+      print('📊 FirestoreService: Categorías procesadas: ${categories.length}');
+      for (var category in categories) {
+        print('  - ${category.name} (ID: ${category.id})');
+      }
+      
+      return categories;
     } catch (e) {
+      print('❌ FirestoreService: Error al obtener categorías: $e');
       throw Exception('Error al obtener categorías: $e');
     }
   }

@@ -52,28 +52,36 @@ class AuthViewModel extends foundation.ChangeNotifier {
 
   Future<bool> signUp(String email, String password, String username) async {
     try {
+      print('🔄 AuthViewModel: Iniciando signUp con email: $email, username: $username');
       _isLoading = true;
       _error = null;
       notifyListeners();
 
-      print('🔄 AuthViewModel: Registrando usuario: $email');
+      print('🔄 AuthViewModel: Llamando a AuthService.registerWithEmailAndPassword...');
       
       final userCredential = await _authService.registerWithEmailAndPassword(email, password, username);
+      print('✅ AuthViewModel: AuthService.registerWithEmailAndPassword completado');
+      
       _currentUser = userCredential.user;
+      print('🔄 AuthViewModel: Usuario actual asignado: ${_currentUser?.uid}');
       
       if (_currentUser != null) {
-        print('✅ AuthViewModel: Usuario registrado exitosamente');
+        print('✅ AuthViewModel: Usuario registrado exitosamente - UID: ${_currentUser!.uid}');
         _isLoading = false;
         notifyListeners();
         return true;
       } else {
+        print('❌ AuthViewModel: userCredential.user es null');
         _error = 'Error al crear el usuario';
         _isLoading = false;
         notifyListeners();
         return false;
       }
     } catch (e, stackTrace) {
+      print('❌ AuthViewModel: Error en signUp - $e');
+      print('❌ AuthViewModel: Stack trace: $stackTrace');
       _error = AppError.fromException(e, stackTrace).message;
+      print('❌ AuthViewModel: Error procesado: $_error');
       _isLoading = false;
       notifyListeners();
       return false;

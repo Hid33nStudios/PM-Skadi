@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart' as foundation;
+import 'package:flutter/material.dart';
 import '../models/sale.dart';
 import '../models/sale_item.dart';
 import '../services/hybrid_data_service.dart';
@@ -14,6 +15,9 @@ class SaleViewModel extends foundation.ChangeNotifier {
   Map<String, dynamic> _saleStats = {};
   bool _isLoading = false;
   String? _error;
+  
+  // Callback para notificar cambios al dashboard
+  VoidCallback? _onSaleAdded;
 
   SaleViewModel(this._dataService, this._authService);
 
@@ -23,28 +27,49 @@ class SaleViewModel extends foundation.ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
 
+  // Método para registrar el callback
+  void setOnSaleAddedCallback(VoidCallback callback) {
+    _onSaleAdded = callback;
+  }
+
+  // Método para limpiar el callback
+  void clearOnSaleAddedCallback() {
+    _onSaleAdded = null;
+  }
+
   Future<void> loadSales() async {
     try {
+      print('🔄 [PRODUCCION] Iniciando carga de ventas...');
+      print('🔄 [PRODUCCION] Usuario autenticado: ${_authService.currentUser?.uid ?? 'NO AUTENTICADO'}');
+      print('🔄 [PRODUCCION] Estado inicial - isLoading: $_isLoading');
+      
       _isLoading = true;
       _error = null;
+      print('🔄 [PRODUCCION] Estado después de setear isLoading=true: $_isLoading');
       notifyListeners();
+      print('🔄 [PRODUCCION] notifyListeners() llamado');
 
-      print('🔄 Cargando ventas');
-      
       _sales = await _dataService.getAllSales();
-      
-      print('📊 Ventas cargadas: ${_sales.length}');
+      print('✅ [PRODUCCION] Ventas cargadas: ${_sales.length}');
       for (var sale in _sales) {
-        print('  - Venta ${sale.id}: \$${sale.amount} - ${sale.quantity} items');
+        print('  - Venta ${sale.id}: ${sale.amount} - ${sale.quantity} items');
       }
       
       await _loadSaleStats();
+      print('🔄 [PRODUCCION] Estadísticas cargadas');
+      
       _isLoading = false;
+      print('🔄 [PRODUCCION] Estado después de setear isLoading=false: $_isLoading');
       notifyListeners();
+      print('✅ [PRODUCCION] notifyListeners() final llamado - Carga completada');
     } catch (e, stackTrace) {
+      print('❌ [PRODUCCION] Error al cargar ventas: $e');
+      print('❌ [PRODUCCION] Stack: $stackTrace');
       _error = AppError.fromException(e, stackTrace).message;
       _isLoading = false;
+      print('🔄 [PRODUCCION] Estado después de error - isLoading: $_isLoading');
       notifyListeners();
+      print('❌ [PRODUCCION] notifyListeners() de error llamado');
     }
   }
 
@@ -67,14 +92,29 @@ class SaleViewModel extends foundation.ChangeNotifier {
 
   Future<bool> addSale(Sale sale) async {
     try {
-      print('🔄 SaleViewModel: Agregando venta: \$${sale.amount}');
+      print('🔄 SaleViewModel: Agregando venta: ${sale.amount}');
+      print('📝 SaleViewModel: Datos de la venta: ${sale.toMap()}');
       
+      print('🔄 SaleViewModel: Llamando a _dataService.createSale...');
       await _dataService.createSale(sale);
+      print('✅ SaleViewModel: _dataService.createSale completado');
+      
+      print('🔄 SaleViewModel: Recargando ventas...');
       await loadSales();
       print('✅ SaleViewModel: Venta agregada exitosamente');
+      
+      // Notificar al dashboard que se agregó una venta
+      if (_onSaleAdded != null) {
+        print('🔄 SaleViewModel: Notificando al dashboard...');
+        _onSaleAdded!();
+      }
+      
       return true;
     } catch (e, stackTrace) {
+      print('❌ SaleViewModel: Error al agregar venta: $e');
+      print('❌ SaleViewModel: Stack trace: $stackTrace');
       _error = AppError.fromException(e, stackTrace).message;
+      print('❌ SaleViewModel: Error procesado: $_error');
       notifyListeners();
       return false;
     }

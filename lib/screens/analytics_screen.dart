@@ -6,6 +6,8 @@ import '../viewmodels/product_viewmodel.dart';
 import '../viewmodels/sale_viewmodel.dart';
 import '../viewmodels/category_viewmodel.dart';
 import '../models/category.dart';
+import '../theme/responsive.dart';
+import '../widgets/responsive_form.dart';
 
 class AnalyticsScreen extends StatefulWidget {
   const AnalyticsScreen({super.key});
@@ -29,10 +31,42 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: _buildResponsiveAppBar(),
+      body: _buildResponsiveBody(),
+    );
+  }
+
+  /// AppBar responsive
+  AppBar _buildResponsiveAppBar() {
+    return AppBar(
+      title: Text(
+        'Análisis y Reportes',
+        style: TextStyle(
+          fontSize: Responsive.getResponsiveFontSize(context, 20),
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      actions: [
+        Padding(
+          padding: EdgeInsets.only(right: Responsive.getResponsiveSpacing(context)),
+          child: IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadData,
+            tooltip: 'Actualizar datos',
+            iconSize: Responsive.isMobile(context) ? 24 : 28,
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Cuerpo principal responsive
+  Widget _buildResponsiveBody() {
     return Consumer3<ProductViewModel, SaleViewModel, CategoryViewModel>(
       builder: (context, productVM, saleVM, categoryVM, child) {
         if (productVM.isLoading || saleVM.isLoading || categoryVM.isLoading) {
-          return const Center(child: CircularProgressIndicator());
+          return _buildLoadingState();
         }
 
         // Verificar si hay errores
@@ -48,145 +82,205 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         }
 
         if (errorMessages.isNotEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.error_outline,
-                  size: 64,
-                  color: Colors.red[300],
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  errorMessages.first,
-                  style: const TextStyle(fontSize: 16),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: _loadData,
-                  child: const Text('Reintentar'),
-                ),
-              ],
-            ),
-          );
+          return _buildErrorState(errorMessages.first);
         }
 
         // Verificar si hay datos
         if (productVM.products.isEmpty && saleVM.sales.isEmpty && categoryVM.categories.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.analytics_outlined,
-                  size: 64,
-                  color: Colors.grey[400],
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'No hay datos para mostrar',
-                  style: TextStyle(fontSize: 16),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: _loadData,
-                  child: const Text('Cargar Datos'),
-                ),
-              ],
-            ),
-          );
+          return _buildEmptyState();
         }
 
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Text(
-                    'Análisis',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    icon: const Icon(Icons.refresh),
-                    onPressed: _loadData,
-                    tooltip: 'Actualizar datos',
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              _buildSummaryCards(context, productVM, saleVM, categoryVM),
-              const SizedBox(height: 24),
-              if (saleVM.sales.isNotEmpty) ...[
-                _buildSalesChart(context, saleVM),
-                const SizedBox(height: 24),
-                _buildTopProducts(context, saleVM),
-                const SizedBox(height: 24),
-              ],
-              if (productVM.products.isNotEmpty && categoryVM.categories.isNotEmpty) ...[
-                _buildCategoryDistribution(context, productVM, categoryVM),
-                const SizedBox(height: 24),
-              ],
-              _buildStockAnalysis(context, productVM),
-            ],
-          ),
-        );
+        return _buildAnalyticsContent(productVM, saleVM, categoryVM);
       },
     );
   }
 
-  Widget _buildSummaryCards(
-    BuildContext context,
-    ProductViewModel productVM,
-    SaleViewModel saleVM,
-    CategoryViewModel categoryVM,
-  ) {
-    return Row(
-      children: [
-        Expanded(
-          child: _buildStatCard(
-            context,
-            'Total Productos',
-            productVM.products.length.toString(),
-            '${productVM.products.where((p) => p.stock <= p.minStock).length} bajo stock',
-            Icons.inventory_2,
-            Colors.blue,
+  /// Estado de carga responsive
+  Widget _buildLoadingState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          CircularProgressIndicator(
+            strokeWidth: Responsive.isMobile(context) ? 3 : 4,
           ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: _buildStatCard(
-            context,
-            'Total Ventas',
-            saleVM.sales.length.toString(),
-            '\$${saleVM.sales.fold<double>(0, (sum, sale) => sum + sale.amount).toStringAsFixed(2)}',
-            Icons.shopping_cart,
-            Colors.green,
+          SizedBox(height: Responsive.getResponsiveSpacing(context)),
+          Text(
+            'Cargando datos analíticos...',
+            style: TextStyle(
+              fontSize: Responsive.getResponsiveFontSize(context, 16),
+              color: Colors.grey[600],
+            ),
           ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: _buildStatCard(
-            context,
-            'Categorías',
-            categoryVM.categories.length.toString(),
-            '${productVM.products.length} productos',
-            Icons.category,
-            Colors.orange,
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
+  /// Estado de error responsive
+  Widget _buildErrorState(String errorMessage) {
+    return Center(
+      child: Padding(
+        padding: Responsive.getResponsivePadding(context),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.error_outline,
+              size: Responsive.isMobile(context) ? 48 : 64,
+              color: Colors.red[300],
+            ),
+            SizedBox(height: Responsive.getResponsiveSpacing(context)),
+            Text(
+              errorMessage,
+              style: TextStyle(
+                fontSize: Responsive.getResponsiveFontSize(context, 16),
+              ),
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: Responsive.getResponsiveSpacing(context)),
+            ElevatedButton.icon(
+              onPressed: _loadData,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Reintentar'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Estado vacío responsive
+  Widget _buildEmptyState() {
+    return Center(
+      child: Padding(
+        padding: Responsive.getResponsivePadding(context),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.analytics_outlined,
+              size: Responsive.isMobile(context) ? 48 : 64,
+              color: Colors.grey[400],
+            ),
+            SizedBox(height: Responsive.getResponsiveSpacing(context)),
+            Text(
+              'No hay datos para mostrar',
+              style: TextStyle(
+                fontSize: Responsive.getResponsiveFontSize(context, 16),
+                color: Colors.grey[600],
+              ),
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: Responsive.getResponsiveSpacing(context) / 2),
+            Text(
+              'Agrega algunos productos y ventas para ver los análisis',
+              style: TextStyle(
+                fontSize: Responsive.getResponsiveFontSize(context, 14),
+                color: Colors.grey[500],
+              ),
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: Responsive.getResponsiveSpacing(context) * 2),
+            ElevatedButton.icon(
+              onPressed: _loadData,
+              icon: const Icon(Icons.add_chart),
+              label: const Text('Cargar Datos'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Contenido principal de analytics responsive
+  Widget _buildAnalyticsContent(ProductViewModel productVM, SaleViewModel saleVM, CategoryViewModel categoryVM) {
+    return SingleChildScrollView(
+      padding: Responsive.getResponsivePadding(context),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Cards de resumen responsive
+          _buildResponsiveSummaryCards(productVM, saleVM, categoryVM),
+          
+          SizedBox(height: Responsive.getResponsiveSpacing(context) * 2),
+          
+                     // Gráficos en layout responsive
+           if (saleVM.sales.isNotEmpty) ...[
+             _buildSalesChart(context, saleVM),
+             SizedBox(height: Responsive.getResponsiveSpacing(context) * 2),
+             _buildTopProducts(context, saleVM),
+             SizedBox(height: Responsive.getResponsiveSpacing(context) * 2),
+           ],
+           
+           // Análisis adicional responsive
+           if (productVM.products.isNotEmpty && categoryVM.categories.isNotEmpty) ...[
+             _buildCategoryDistribution(context, productVM, categoryVM),
+             SizedBox(height: Responsive.getResponsiveSpacing(context) * 2),
+           ],
+           
+           // Análisis de stock responsive
+           _buildStockAnalysis(context, productVM),
+        ],
+      ),
+    );
+  }
+
+  /// Cards de resumen responsive
+  Widget _buildResponsiveSummaryCards(ProductViewModel productVM, SaleViewModel saleVM, CategoryViewModel categoryVM) {
+    final cards = [
+      _buildStatCard(
+        context,
+        'Total Productos',
+        productVM.products.length.toString(),
+        '${productVM.products.where((p) => p.stock <= p.minStock).length} bajo stock',
+        Icons.inventory_2,
+        Colors.blue,
+      ),
+      _buildStatCard(
+        context,
+        'Total Ventas',
+        saleVM.sales.length.toString(),
+        '\$${saleVM.sales.fold<double>(0, (sum, sale) => sum + sale.amount).toStringAsFixed(2)}',
+        Icons.shopping_cart,
+        Colors.green,
+      ),
+      _buildStatCard(
+        context,
+        'Categorías',
+        categoryVM.categories.length.toString(),
+        '${productVM.products.length} productos',
+        Icons.category,
+        Colors.orange,
+      ),
+    ];
+
+    if (Responsive.isMobile(context)) {
+      // En móvil: columna vertical
+      return Column(
+        children: cards.map((card) => Container(
+          margin: EdgeInsets.only(bottom: Responsive.getResponsiveSpacing(context)),
+          child: card,
+        )).toList(),
+      );
+    } else {
+      // En tablet/desktop: fila horizontal
+      return Row(
+        children: cards.map((card) => Expanded(
+          child: Container(
+            margin: EdgeInsets.only(right: Responsive.getResponsiveSpacing(context)),
+            child: card,
+          ),
+        )).toList(),
+      );
+    }
+  }
+
+  /// Card de estadística responsive
   Widget _buildStatCard(
     BuildContext context,
     String title,
@@ -201,26 +295,30 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         borderRadius: BorderRadius.circular(12),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: Responsive.getResponsivePadding(context),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(8),
+                  padding: EdgeInsets.all(Responsive.getResponsiveSpacing(context) / 2),
                   decoration: BoxDecoration(
                     color: color.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Icon(icon, color: color, size: 20),
+                  child: Icon(
+                    icon, 
+                    color: color, 
+                    size: Responsive.isMobile(context) ? 18 : 24,
+                  ),
                 ),
-                const SizedBox(width: 8),
+                SizedBox(width: Responsive.getResponsiveSpacing(context) / 2),
                 Expanded(
                   child: Text(
                     title,
-                    style: const TextStyle(
-                      fontSize: 14,
+                    style: TextStyle(
+                      fontSize: Responsive.getResponsiveFontSize(context, 14),
                       color: Colors.black54,
                       fontWeight: FontWeight.w500,
                     ),
@@ -228,19 +326,20 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: Responsive.getResponsiveSpacing(context)),
             Text(
               value,
               style: TextStyle(
-                fontSize: 28,
+                fontSize: Responsive.getResponsiveFontSize(context, Responsive.isMobile(context) ? 24 : 28),
                 fontWeight: FontWeight.bold,
                 color: color,
               ),
             ),
+            SizedBox(height: Responsive.getResponsiveSpacing(context) / 4),
             Text(
               subtitle,
-              style: const TextStyle(
-                fontSize: 12,
+              style: TextStyle(
+                fontSize: Responsive.getResponsiveFontSize(context, 12),
                 color: Colors.black54,
               ),
             ),

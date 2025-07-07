@@ -30,10 +30,28 @@ class DashboardViewModel extends foundation.ChangeNotifier {
       final dashboardMap = await _dataService.getDashboardData();
       
       // Cargar datos adicionales para el DashboardData
+      print('🔄 DashboardViewModel: Cargando productos...');
       final products = await _dataService.getAllProducts();
+      
+      print('🔄 DashboardViewModel: Cargando ventas...');
       final sales = await _dataService.getAllSales();
+      
+      print('🔄 DashboardViewModel: Cargando categorías...');
       final categories = await _dataService.getAllCategories();
+      
+      print('🔄 DashboardViewModel: Cargando movimientos...');
       final movements = await _dataService.getAllMovements();
+      
+      print('📊 DashboardViewModel: Datos cargados:');
+      print('  - Productos: ${products.length}');
+      print('  - Ventas: ${sales.length}');
+      print('  - Categorías: ${categories.length}');
+      print('  - Movimientos: ${movements.length}');
+      
+      // Mostrar detalles de categorías
+      for (var category in categories) {
+        print('    - Categoría: ${category.name} (ID: ${category.id})');
+      }
       
       // Calcular movimientos recientes (última semana)
       final now = DateTime.now();
@@ -42,16 +60,25 @@ class DashboardViewModel extends foundation.ChangeNotifier {
         movement.date.isAfter(lastWeek)
       ).toList();
       
+      // Calcular ingresos totales de todas las ventas
+      final totalRevenue = sales.fold<double>(0.0, (sum, sale) => sum + sale.amount);
+      
       _dashboardData = DashboardData(
         totalProducts: dashboardMap['totalProducts'] ?? products.length,
         totalSales: dashboardMap['totalSales'] ?? sales.length,
-        totalRevenue: (dashboardMap['monthSales'] ?? 0.0).toDouble(),
+        totalRevenue: totalRevenue,
         totalCategories: categories.length,
         recentMovements: recentMovements,
         products: products,
         sales: sales,
         categories: categories,
       );
+      
+      print('📊 DashboardViewModel: DashboardData creado:');
+      print('  - Total productos: ${_dashboardData!.totalProducts}');
+      print('  - Total ventas: ${_dashboardData!.totalSales}');
+      print('  - Total categorías: ${_dashboardData!.totalCategories}');
+      print('  - Categorías en datos: ${_dashboardData!.categories.length}');
       
       print('✅ Dashboard data cargado exitosamente');
       print('  - Productos: ${_dashboardData!.totalProducts}');

@@ -23,6 +23,16 @@ class Sale {
   });
 
   factory Sale.fromMap(Map<String, dynamic> map, String id) {
+    DateTime parseDate(dynamic dateValue) {
+      if (dateValue is Timestamp) {
+        return dateValue.toDate();
+      } else if (dateValue is String) {
+        return DateTime.parse(dateValue);
+      } else {
+        return DateTime.now(); // Fallback
+      }
+    }
+
     return Sale(
       id: id,
       userId: map['userId'] as String,
@@ -30,7 +40,7 @@ class Sale {
       productName: map['productName'] as String,
       amount: (map['amount'] as num).toDouble(),
       quantity: map['quantity'] as int,
-      date: (map['date'] as Timestamp).toDate(),
+      date: parseDate(map['date']),
       notes: map['notes'] as String?,
     );
   }
@@ -42,7 +52,7 @@ class Sale {
       'productName': productName,
       'amount': amount,
       'quantity': quantity,
-      'date': Timestamp.fromDate(date),
+      'date': date.toIso8601String(), // Usar DateTime en lugar de Timestamp para Hive
       'notes': notes,
     };
   }

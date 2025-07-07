@@ -97,21 +97,6 @@ class _MovementHistoryScreenState extends State<MovementHistoryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Historial de Movimientos'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadData,
-            tooltip: 'Actualizar',
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: _signOut,
-            tooltip: 'Cerrar sesión',
-          ),
-        ],
-      ),
       body: Consumer2<MovementViewModel, ProductViewModel>(
         builder: (context, movementVM, productVM, child) {
           if (movementVM.isLoading || productVM.isLoading) {
