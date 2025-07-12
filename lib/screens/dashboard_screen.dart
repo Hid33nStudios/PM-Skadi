@@ -10,6 +10,10 @@ import '../theme/responsive.dart';
 import '../services/auth_service.dart';
 import '../utils/error_handler.dart';
 import '../router/app_router.dart';
+import '../utils/error_cases.dart';
+import '../viewmodels/auth_viewmodel.dart';
+import '../widgets/app_initializer.dart';
+import '../viewmodels/sync_viewmodel.dart';
 
 class DashboardScreen extends StatefulWidget {
   final bool showAppBar;
@@ -23,39 +27,100 @@ class DashboardScreen extends StatefulWidget {
   _DashboardScreenState createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingObserver {
+class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAliveClientMixin {
   final _authService = AuthService();
+  
+  // Guardar referencias a los ViewModels para evitar acceder al contexto en dispose
+  DashboardViewModel? _dashboardViewModel;
+  SaleViewModel? _saleViewModel;
+
+  // Nuevo: Para evitar recargas infinitas
+  String? _lastUserId;
+  bool _lastSyncDone = false;
+  bool _hasInitialData = false;
+  
+  // Implementar AutomaticKeepAliveClientMixin
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    // Usar addPostFrameCallback para evitar llamar setState durante build
+    // Solo cargar datos una vez al inicializar
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadDashboardData();
-      _setupSaleCallback();
+      _setupViewModels();
+      _loadDashboardDataIfNeeded();
+      
+      // Agregar listener para cambios de autenticación
+      final authViewModel = context.read<AuthViewModel>();
+      authViewModel.addListener(_onAuthStateChanged);
     });
+  }
+  
+  void _onAuthStateChanged() {
+    if (mounted) {
+      final authViewModel = context.read<AuthViewModel>();
+      if (authViewModel.isAuthenticated && !_hasInitialData) {
+        print('🔄 Dashboard: Usuario autenticado, cargando datos...');
+        _loadDashboardDataIfNeeded();
+      }
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Solo configurar ViewModels si no están configurados
+    if (_dashboardViewModel == null || _saleViewModel == null) {
+      _setupViewModels();
+    }
+    // NO recargar datos aquí - solo en initState
+  }
+  
+  void _setupViewModels() {
+    if (_dashboardViewModel == null) {
+      _dashboardViewModel = context.read<DashboardViewModel>();
+    }
+    if (_saleViewModel == null) {
+      _saleViewModel = context.read<SaleViewModel>();
+      _setupSaleCallback();
+    }
+  }
+  
+  void _loadDashboardDataIfNeeded() {
+    // Solo cargar datos si hay usuario autenticado
+    final authViewModel = context.read<AuthViewModel>();
+    if (authViewModel.isAuthenticated && 
+        _dashboardViewModel?.dashboardData == null && 
+        !_dashboardViewModel!.isLoading && 
+        !_hasInitialData) {
+      print('🔄 Dashboard: Cargando datos iniciales...');
+      _loadDashboardData();
+      _hasInitialData = true;
+    } else if (!authViewModel.isAuthenticated) {
+      print('⚠️  Dashboard: No hay usuario autenticado, esperando...');
+    }
   }
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
     _clearSaleCallback();
+    // Remover listener de auth
+    if (mounted) {
+      final authViewModel = context.read<AuthViewModel>();
+      authViewModel.removeListener(_onAuthStateChanged);
+    }
     super.dispose();
   }
 
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    super.didChangeAppLifecycleState(state);
-    // Recargar datos cuando la app vuelve a estar activa
-    if (state == AppLifecycleState.resumed) {
-      _loadDashboardData();
-    }
-  }
-
   Future<void> _loadDashboardData() async {
-    final dashboardViewModel = context.read<DashboardViewModel>();
-    await dashboardViewModel.loadDashboardData();
+    // Verificar que el widget sigue montado antes de acceder al contexto
+    if (!mounted) return;
+    
+    // Usar la referencia guardada en lugar de acceder al contexto
+    if (_dashboardViewModel != null) {
+      await _dashboardViewModel!.loadDashboardData();
+    }
   }
 
   Future<void> _signOut() async {
@@ -66,32 +131,116 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       }
     } catch (e) {
       if (mounted) {
-        context.showError(e);
+        final dashboardViewModel = _dashboardViewModel;
+        showAppError(context, AppErrorType.desconocido);
       }
     }
   }
 
   void _setupSaleCallback() {
-    final saleViewModel = context.read<SaleViewModel>();
-    saleViewModel.setOnSaleAddedCallback(() {
-      print('🔄 Dashboard: Recibida notificación de venta agregada, recargando datos...');
-      _loadDashboardData();
+    // Verificar que el widget sigue montado
+    if (!mounted || _saleViewModel == null) return;
+    
+    _saleViewModel!.setOnSaleAddedCallback(() {
+      // Verificar que el widget sigue montado antes de ejecutar el callback
+      if (mounted) {
+        print('🔄 Dashboard: Recibida notificación de venta agregada, recargando datos...');
+        _loadDashboardData();
+      }
     });
+  }
+  
+  // Método público para recargar datos cuando sea necesario
+  void reloadDashboardData() {
+    if (mounted && _dashboardViewModel != null) {
+      print('🔄 Dashboard: Recarga manual solicitada...');
+      _dashboardViewModel!.clearData();
+      _dashboardViewModel!.loadDashboardData();
+    }
   }
 
   void _clearSaleCallback() {
-    final saleViewModel = context.read<SaleViewModel>();
-    saleViewModel.clearOnSaleAddedCallback();
+    // Usar la referencia guardada en lugar de acceder al contexto
+    if (_saleViewModel != null) {
+      _saleViewModel!.clearOnSaleAddedCallback();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return widget.showAppBar
-        ? Scaffold(
-            appBar: _buildResponsiveAppBar(),
-            body: _buildResponsiveBody(),
-          )
-        : _buildResponsiveBody();
+    super.build(context); // Requerido por AutomaticKeepAliveClientMixin
+    return ValueListenableBuilder<bool>(
+      valueListenable: AppInitializer.isInitializedNotifier,
+      builder: (context, isInitialized, _) {
+        if (!isInitialized) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        return Consumer3<AuthViewModel, DashboardViewModel, SyncViewModel>(
+          builder: (context, authViewModel, dashboardViewModel, syncViewModel, child) {
+            // Mostrar loading mientras se verifica autenticación
+            if (authViewModel.isAuthLoading) {
+              return const Scaffold(
+                body: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      CircularProgressIndicator(),
+                      SizedBox(height: 16),
+                      Text('Verificando autenticación...'),
+                    ],
+                  ),
+                ),
+              );
+            }
+            
+            // Si no está autenticado, mostrar mensaje claro
+            if (!authViewModel.isAuthenticated) {
+              return const Scaffold(
+                body: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.lock_outline, size: 64, color: Colors.grey),
+                      SizedBox(height: 16),
+                      Text(
+                        'No autenticado',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                      SizedBox(height: 8),
+                      Text('Inicia sesión para continuar'),
+                    ],
+                  ),
+                ),
+              );
+            }
+            
+            // Mostrar loading mientras sincroniza
+            if (!syncViewModel.isInitialSyncDone) {
+              return const Scaffold(
+                body: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      CircularProgressIndicator(),
+                      SizedBox(height: 16),
+                      Text('Sincronizando datos iniciales...'),
+                    ],
+                  ),
+                ),
+              );
+            }
+            return widget.showAppBar
+                ? Scaffold(
+                    appBar: _buildResponsiveAppBar(),
+                    body: _buildResponsiveBody(),
+                  )
+                : _buildResponsiveBody();
+          },
+        );
+      },
+    );
   }
 
   /// AppBar responsive
@@ -142,7 +291,11 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     return Container(
       color: Responsive.isDesktop(context) ? Colors.grey.shade50 : Colors.white,
       child: RefreshIndicator(
-        onRefresh: () => context.read<DashboardViewModel>().loadDashboardData(),
+        onRefresh: () async {
+          if (_dashboardViewModel != null) {
+            await _dashboardViewModel!.loadDashboardData();
+          }
+        },
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: widget.showAppBar 
@@ -250,7 +403,11 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             ),
             SizedBox(height: Responsive.getResponsiveSpacing(context)),
             ElevatedButton.icon(
-              onPressed: () => context.read<DashboardViewModel>().loadDashboardData(),
+              onPressed: () {
+                if (_dashboardViewModel != null) {
+                  _dashboardViewModel!.loadDashboardData();
+                }
+              },
               icon: const Icon(Icons.refresh),
               label: const Text('Reintentar'),
               style: ElevatedButton.styleFrom(

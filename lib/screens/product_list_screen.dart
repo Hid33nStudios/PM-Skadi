@@ -11,6 +11,7 @@ import '../theme/responsive.dart';
 import '../utils/error_handler.dart';
 import 'package:go_router/go_router.dart';
 import '../router/app_router.dart';
+import '../utils/error_cases.dart';
 
 class ProductListScreen extends StatefulWidget {
   const ProductListScreen({super.key});
@@ -25,13 +26,19 @@ class _ProductListScreenState extends State<ProductListScreen> {
   bool _isLoading = false;
   AppError? _error;
 
+  // Lazy loading
+  final int _pageSize = 20;
+  int _currentMax = 20;
+  final ScrollController _scrollController = ScrollController();
+  bool _isLoadingMore = false;
+
   @override
   void initState() {
     super.initState();
-    // Usar addPostFrameCallback para evitar el error de setState durante build
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadData();
     });
+    _scrollController.addListener(_onScroll);
   }
 
   @override
@@ -52,6 +59,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
   @override
   void dispose() {
     _searchController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -62,12 +70,14 @@ class _ProductListScreenState extends State<ProductListScreen> {
     });
 
     try {
-      await context.read<ProductViewModel>().loadProducts();
+      await context.read<ProductViewModel>().loadInitialProducts();
       await context.read<CategoryViewModel>().loadCategories();
       
       if (mounted) {
+        final products = context.read<ProductViewModel>().products;
+        products.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
         setState(() {
-          _filteredProducts = context.read<ProductViewModel>().products;
+          _filteredProducts = List<Product>.from(products);
           _isLoading = false;
         });
       }
@@ -77,27 +87,30 @@ class _ProductListScreenState extends State<ProductListScreen> {
           _error = AppError.fromException(e);
           _isLoading = false;
         });
-        CustomSnackBar.showError(
-          context: context,
-          message: AppError.fromException(e).message,
-        );
+        final errorType = context.read<ProductViewModel>().errorType ?? AppErrorType.desconocido;
+        showAppError(context, errorType);
       }
     }
   }
 
+  void _onScroll() {
+    // Eliminado: la paginación ahora la maneja el ViewModel
+  }
+
   void _filterProducts(String query) {
     final products = context.read<ProductViewModel>().products;
-    
     setState(() {
       if (query.isEmpty) {
-        _filteredProducts = products;
+        _filteredProducts = List<Product>.from(products)..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
       } else {
         _filteredProducts = products.where((product) {
           final nameMatch = product.name.toLowerCase().contains(query.toLowerCase());
           final descriptionMatch = product.description?.toLowerCase().contains(query.toLowerCase()) ?? false;
           return nameMatch || descriptionMatch;
-        }).toList();
+        }).toList()
+        ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
       }
+      _currentMax = _pageSize;
     });
   }
 
@@ -139,15 +152,16 @@ class _ProductListScreenState extends State<ProductListScreen> {
                   ),
                 );
               }
+            } else {
+              if (mounted) {
+                final errorType = context.read<ProductViewModel>().errorType ?? AppErrorType.desconocido;
+                showAppError(context, errorType);
+              }
             }
           } catch (e) {
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Error: $e'),
-                  backgroundColor: Colors.red,
-                ),
-              );
+              final errorType = context.read<ProductViewModel>().errorType ?? AppErrorType.desconocido;
+              showAppError(context, errorType);
             }
           }
         }
@@ -226,164 +240,39 @@ class _ProductListScreenState extends State<ProductListScreen> {
 
   /// Lista de productos responsive
   Widget _buildProductList() {
-    return Consumer<ProductViewModel>(
-      builder: (context, productVM, child) {
-        if (_isLoading || productVM.isLoading) {
-          return _buildLoadingState();
-        }
-
-        if (_error != null || productVM.error != null) {
-          return _buildErrorState();
-        }
-
-        if (_filteredProducts.isEmpty) {
-          return _buildEmptyState();
-        }
-
-        // Layout responsive para la lista
-        if (Responsive.isDesktop(context)) {
-          return _buildGridLayout();
-        } else {
-          return _buildListLayout();
-        }
-      },
-    );
-  }
-
-  /// Estado de carga
-  Widget _buildLoadingState() {
-    return const Center(
-      child: ProductListSkeleton(itemCount: 8),
-    );
-  }
-
-  /// Estado de error
-  Widget _buildErrorState() {
-    final error = _error ?? context.read<ProductViewModel>().error;
-    
-    return Center(
-      child: Padding(
-        padding: Responsive.getResponsivePadding(context),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.error_outline,
-              size: Responsive.isMobile(context) ? 48 : 64,
-              color: Colors.red[300],
-            ),
-            SizedBox(height: Responsive.getResponsiveSpacing(context)),
-            Text(
-              error?.toString() ?? 'Error desconocido',
-              style: TextStyle(
-                fontSize: Responsive.getResponsiveFontSize(context, 16),
-              ),
-              textAlign: TextAlign.center,
-            ),
-            SizedBox(height: Responsive.getResponsiveSpacing(context)),
-            ElevatedButton.icon(
-              onPressed: _loadData,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Reintentar'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Estado vacío
-  Widget _buildEmptyState() {
-    return Center(
-      child: Padding(
-        padding: Responsive.getResponsivePadding(context),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.inventory_2_outlined,
-              size: Responsive.isMobile(context) ? 48 : 64,
-              color: Colors.grey[400],
-            ),
-            SizedBox(height: Responsive.getResponsiveSpacing(context)),
-            Text(
-              _searchController.text.isEmpty
-                  ? 'No hay productos registrados'
-                  : 'No se encontraron productos',
-              style: TextStyle(
-                fontSize: Responsive.getResponsiveFontSize(context, 16),
-                color: Colors.grey[600],
-              ),
-              textAlign: TextAlign.center,
-            ),
-            if (_searchController.text.isEmpty) ...[
-              SizedBox(height: Responsive.getResponsiveSpacing(context)),
-              Text(
-                'Comienza agregando tu primer producto',
-                style: TextStyle(
-                  fontSize: Responsive.getResponsiveFontSize(context, 14),
-                  color: Colors.grey[500],
-                ),
-                textAlign: TextAlign.center,
-              ),
-              SizedBox(height: Responsive.getResponsiveSpacing(context) * 2),
-              ElevatedButton.icon(
-                onPressed: () async {
-                  context.goToAddProduct();
-                  _loadData();
-                },
-                icon: const Icon(Icons.add),
-                label: const Text('Agregar Primer Producto'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  foregroundColor: Colors.white,
-                  padding: EdgeInsets.symmetric(
-                    horizontal: Responsive.getResponsiveSpacing(context) * 2,
-                    vertical: Responsive.getResponsiveSpacing(context),
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Layout en grid para desktop
-  Widget _buildGridLayout() {
-    final columns = Responsive.isLargeDesktop(context) ? 3 : 2;
-    
-    return GridView.builder(
-      padding: Responsive.getResponsivePadding(context),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: columns,
-        mainAxisSpacing: Responsive.getResponsiveSpacing(context),
-        crossAxisSpacing: Responsive.getResponsiveSpacing(context),
-        childAspectRatio: 1.2,
-      ),
-      itemCount: _filteredProducts.length,
-      itemBuilder: (context, index) {
-        final product = _filteredProducts[index];
-        return _buildProductCard(product, isGrid: true);
-      },
-    );
-  }
-
-  /// Layout en lista para móvil/tablet
-  Widget _buildListLayout() {
-    return ListView.builder(
-      padding: Responsive.getResponsivePadding(context),
-      itemCount: _filteredProducts.length,
-      itemBuilder: (context, index) {
-        final product = _filteredProducts[index];
-        return Container(
-          margin: EdgeInsets.only(
-            bottom: Responsive.getResponsiveSpacing(context),
+    final viewModel = context.watch<ProductViewModel>();
+    final products = _filteredProducts;
+    if (viewModel.isLoading && products.isEmpty) {
+      return Center(child: CircularProgressIndicator());
+    }
+    if (viewModel.error != null) {
+      return Center(child: Text(viewModel.error!));
+    }
+    if (products.isEmpty) {
+      return Center(child: Text('No hay productos registrados.'));
+    }
+    return Column(
+      children: [
+        Expanded(
+          child: ListView.builder(
+            itemCount: products.length,
+            itemBuilder: (context, index) {
+              final product = products[index];
+              return _buildProductCard(product, isGrid: false);
+            },
           ),
-          child: _buildProductCard(product, isGrid: false),
-        );
-      },
+        ),
+        if (viewModel.hasMore)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: ElevatedButton(
+              onPressed: viewModel.isLoadingMore ? null : () => viewModel.loadMoreProducts(),
+              child: viewModel.isLoadingMore
+                  ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Text('Cargar más'),
+            ),
+          ),
+      ],
     );
   }
 

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../viewmodels/dashboard_viewmodel.dart';
 import '../../models/category.dart';
 import 'dashboard_card.dart';
+import '../../widgets/skeleton_loading.dart';
 
 class StockStatus extends StatelessWidget {
   final int? maxItems;
@@ -10,30 +11,26 @@ class StockStatus extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<DashboardViewModel>(
-      builder: (context, dashboardVM, child) {
-        if (dashboardVM.isLoading) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        if (dashboardVM.error != null) {
-          return const Center(child: Text('Error al cargar los productos'));
-        }
-
-        final data = dashboardVM.dashboardData;
-        if (data == null) {
-          return const Center(child: Text('No hay datos disponibles'));
-        }
-
-        final totalProducts = data.products.length;
-        final lowStockProducts = data.products.where((p) => p.stock <= 10).toList();
-        final outOfStockProducts = data.products.where((p) => p.stock == 0).length;
-        final totalStock = data.products.fold<int>(0, (sum, p) => sum + p.stock);
-
+    return Selector<DashboardViewModel, List>(
+      selector: (_, vm) => vm.lowStockProductsSummary,
+      builder: (context, lowStockProducts, _) {
         final limitedLowStockProducts = maxItems != null
             ? lowStockProducts.take(maxItems!).toList()
             : lowStockProducts;
-
+        final isMobile = MediaQuery.of(context).size.width < 600;
+        if (isMobile) {
+          return Container(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Productos con bajo stock', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Text('Total: ${lowStockProducts.length}', style: const TextStyle(fontSize: 18, color: Colors.red)),
+              ],
+            ),
+          );
+        }
         return Container(
           padding: const EdgeInsets.all(16),
           child: _buildDesktopLayout(context, limitedLowStockProducts),
@@ -44,24 +41,57 @@ class StockStatus extends StatelessWidget {
 
   /// Layout para desktop
   Widget _buildDesktopLayout(BuildContext context, List<dynamic> lowStockProducts) {
+    // Limitar a los primeros 10 productos
+    int maxItems = 10;
+    bool showAll = false;
+    if (lowStockProducts.length <= maxItems) showAll = true;
+    List<dynamic> visibleProducts = showAll ? lowStockProducts : lowStockProducts.take(maxItems).toList();
     return Container(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          
           // Lista de productos
           Expanded(
-            child: lowStockProducts.isEmpty
+            child: visibleProducts.isEmpty
                 ? _buildEmptyState(context)
                 : ListView.builder(
-                    itemCount: lowStockProducts.length,
+                    itemCount: visibleProducts.length,
                     itemBuilder: (context, index) {
-                      final product = lowStockProducts[index];
+                      final product = visibleProducts[index];
                       return _buildEnhancedStockItem(context, product, index);
                     },
                   ),
           ),
+          if (!showAll)
+            Center(
+              child: ElevatedButton(
+                onPressed: () => showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Todos los productos con bajo stock'),
+                    content: SizedBox(
+                      width: 400,
+                      height: 400,
+                      child: ListView.builder(
+                        itemCount: lowStockProducts.length,
+                        itemBuilder: (context, index) {
+                          final product = lowStockProducts[index];
+                          return _buildEnhancedStockItem(context, product, index);
+                        },
+                      ),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Cerrar'),
+                      ),
+                    ],
+                  ),
+                ),
+                child: const Text('Ver más'),
+              ),
+            ),
         ],
       ),
     );
@@ -77,25 +107,14 @@ class StockStatus extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: isEven 
-            ? [Colors.white, Colors.grey.shade50]
-            : [Colors.grey.shade50, Colors.white],
-        ),
+        color: isEven 
+          ? Colors.white
+          : Colors.grey.shade50,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: isCritical ? Colors.red.shade200 : Colors.orange.shade200,
           width: 1,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 8,
-            spreadRadius: 0,
-          ),
-        ],
       ),
       child: Row(
         children: [

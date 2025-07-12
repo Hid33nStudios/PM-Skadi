@@ -2,72 +2,111 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../viewmodels/dashboard_viewmodel.dart';
 import '../../models/category.dart';
+import '../../widgets/skeleton_loading.dart';
 
 class CategoryDistribution extends StatelessWidget {
   const CategoryDistribution({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<DashboardViewModel>(
-      builder: (context, dashboardVM, _) {
-        if (dashboardVM.isLoading) {
-          return const Center(child: CircularProgressIndicator());
+    return Selector<DashboardViewModel, Map<String, int>>(
+      selector: (_, vm) => vm.categoryCounts,
+      builder: (context, categoryCounts, _) {
+        if (categoryCounts.isEmpty) {
+          return Center(child: Text('No hay datos de categorías.'));
         }
+        return _CategoryDistributionChart(categoryCounts: categoryCounts);
+      },
+    );
+  }
+}
 
-        if (dashboardVM.error != null) {
-          return Center(
-            child: Text(
-              'Error: ${dashboardVM.error}',
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
-            ),
-          );
-        }
+class _CategoryDistributionChart extends StatelessWidget {
+  final Map<String, int> categoryCounts;
 
-        final data = dashboardVM.dashboardData;
-        if (data == null) {
-          return const Center(child: Text('No hay datos disponibles'));
-        }
+  const _CategoryDistributionChart({Key? key, required this.categoryCounts}) : super(key: key);
 
-        // Agrupar productos por categoría
-        final categoryCounts = <String, int>{};
-        for (var product in data.products) {
-          String categoryName = 'Sin categoría';
-          
-          if (product.categoryId.isNotEmpty) {
-            try {
-              final category = data.categories.firstWhere(
-                (c) => c.id == product.categoryId,
-                orElse: () => Category(
-                  id: 'default',
-                  name: 'Sin categoría',
-                  description: '',
-                  createdAt: DateTime.now(),
-                  updatedAt: DateTime.now(),
+  @override
+  Widget build(BuildContext context) {
+    // Mostrar solo resumen en móviles para optimizar rendimiento
+    final isMobile = MediaQuery.of(context).size.width < 600;
+    if (isMobile) {
+      final total = categoryCounts.values.fold<int>(0, (sum, v) => sum + v);
+      return Container(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Distribución por categoría', style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Text('Total de productos: $total', style: const TextStyle(fontSize: 18, color: Colors.blue)),
+            const SizedBox(height: 8),
+            Text('Categorías: ${categoryCounts.length}', style: const TextStyle(fontSize: 16)),
+          ],
+        ),
+      );
+    }
+
+    // Limitar a las primeras 10 categorías
+    int maxItems = 10;
+    bool showAll = false;
+    if (categoryCounts.length <= maxItems) showAll = true;
+    final entries = categoryCounts.entries.toList();
+    final visibleEntries = showAll ? entries : entries.take(maxItems).toList();
+
+    return Column(
+      children: [
+        Expanded(
+          child: ListView.builder(
+            itemCount: visibleEntries.length,
+            itemBuilder: (context, index) {
+              final entry = visibleEntries[index];
+              return ListTile(
+                title: Text(entry.key),
+                trailing: Text(
+                  '${entry.value} productos',
+                  style: Theme.of(context).textTheme.bodyLarge,
                 ),
               );
-              categoryName = category.name;
-            } catch (e) {
-              categoryName = 'Sin categoría';
-            }
-          }
-          
-          categoryCounts[categoryName] = (categoryCounts[categoryName] ?? 0) + 1;
-        }
-
-        return ListView.builder(
-          itemCount: categoryCounts.length,
-          itemBuilder: (context, index) {
-            final entry = categoryCounts.entries.elementAt(index);
-            return ListTile(
-              title: Text(entry.key),
-              trailing: Text(
-                '${entry.value} productos',
-                style: Theme.of(context).textTheme.bodyLarge,
+            },
+          ),
+        ),
+        if (!showAll)
+          Center(
+            child: ElevatedButton(
+              onPressed: () => showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Todas las categorías'),
+                  content: SizedBox(
+                    width: 400,
+                    height: 400,
+                    child: ListView.builder(
+                      itemCount: entries.length,
+                      itemBuilder: (context, index) {
+                        final entry = entries[index];
+                        return ListTile(
+                          title: Text(entry.key),
+                          trailing: Text(
+                            '${entry.value} productos',
+                            style: Theme.of(context).textTheme.bodyLarge,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Cerrar'),
+                    ),
+                  ],
+                ),
               ),
-            );
-          },
-        );
-      },
+              child: const Text('Ver más'),
+            ),
+          ),
+      ],
     );
   }
 } 

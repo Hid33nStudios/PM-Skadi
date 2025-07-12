@@ -6,6 +6,8 @@ import '../utils/error_handler.dart';
 import '../widgets/responsive_form.dart';
 import '../theme/responsive.dart';
 import '../router/app_router.dart';
+import '../utils/error_cases.dart';
+import '../viewmodels/dashboard_viewmodel.dart';
 
 class SalesScreen extends StatefulWidget {
   const SalesScreen({super.key});
@@ -21,7 +23,10 @@ class _SalesScreenState extends State<SalesScreen> {
   @override
   void initState() {
     super.initState();
-    _loadSales();
+    // Usar addPostFrameCallback para evitar llamar setState durante build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadSales();
+    });
   }
 
   @override
@@ -58,6 +63,8 @@ class _SalesScreenState extends State<SalesScreen> {
       try {
         final success = await context.read<SaleViewModel>().deleteSale(sale.id);
         if (success) {
+          // Recargar dashboard inmediatamente
+          context.read<DashboardViewModel>().loadDashboardData();
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
@@ -69,7 +76,9 @@ class _SalesScreenState extends State<SalesScreen> {
         }
       } catch (e) {
         if (mounted) {
-          context.showError(e);
+          final saleViewModel = context.read<SaleViewModel>();
+          final errorType = saleViewModel.errorType ?? AppErrorType.desconocido;
+          showAppError(context, errorType);
         }
       }
     }
@@ -195,30 +204,11 @@ class _SalesScreenState extends State<SalesScreen> {
               }
 
               if (saleVM.error != null) {
-                print('❌ [PRODUCCION] Mostrando error: ${saleVM.error}');
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.error_outline,
-                        size: 64,
-                        color: Colors.red[300],
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        saleVM.error!,
-                        style: const TextStyle(fontSize: 16),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: _loadSales,
-                        child: const Text('Reintentar'),
-                      ),
-                    ],
-                  ),
-                );
+                final errorType = saleVM.errorType ?? AppErrorType.desconocido;
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  showAppError(context, errorType);
+                });
+                return const SizedBox.shrink();
               }
 
               final sales = saleVM.searchSales(_searchQuery);

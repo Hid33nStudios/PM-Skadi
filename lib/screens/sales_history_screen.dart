@@ -4,6 +4,8 @@ import 'package:intl/intl.dart';
 import '../viewmodels/sale_viewmodel.dart';
 import '../theme/responsive.dart';
 import '../widgets/responsive_form.dart';
+import '../models/sale.dart';
+import '../utils/error_cases.dart';
 
 class SalesHistoryScreen extends StatefulWidget {
   const SalesHistoryScreen({super.key});
@@ -13,9 +15,18 @@ class SalesHistoryScreen extends StatefulWidget {
 }
 
 class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
+  late int _pageSize;
+  late int _currentMax;
+  late ScrollController _scrollController;
+  late bool _isLoadingMore;
+
   @override
   void initState() {
     super.initState();
+    _pageSize = 10;
+    _currentMax = 0;
+    _scrollController = ScrollController();
+    _isLoadingMore = false;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadSales();
     });
@@ -29,7 +40,7 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: _buildResponsiveAppBar(),
-      body: _buildResponsiveBody(),
+      body: _buildLazyLoadingSalesList(),
     );
   }
 
@@ -57,280 +68,154 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
     );
   }
 
-  /// Cuerpo principal responsive
-  Widget _buildResponsiveBody() {
-    return Consumer<SaleViewModel>(
-      builder: (context, viewModel, child) {
-        if (viewModel.isLoading) {
-          return _buildLoadingState();
-        }
-
-        if (viewModel.error != null) {
-          return _buildErrorState(viewModel.error!);
-        }
-
-        return _buildSalesContent(viewModel);
-      },
+  Widget _buildLazyLoadingSalesList() {
+    final viewModel = context.watch<SaleViewModel>();
+    final sales = viewModel.sales;
+    if (viewModel.isLoading && sales.isEmpty) {
+      return Center(child: CircularProgressIndicator());
+    }
+    if (viewModel.error != null) {
+      final errorType = viewModel.errorType ?? AppErrorType.desconocido;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        showAppError(context, errorType);
+      });
+      return const SizedBox.shrink();
+    }
+    if (sales.isEmpty) {
+      return Center(child: Text('No hay ventas registradas.'));
+    }
+    return Column(
+      children: [
+        Expanded(
+          child: ListView.builder(
+            itemCount: sales.length,
+            itemBuilder: (context, index) {
+              final sale = sales[index];
+              return _buildSaleItem(sale);
+            },
+          ),
+        ),
+        if (viewModel.hasMore)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: ElevatedButton(
+              onPressed: viewModel.isLoadingMore ? null : () => viewModel.loadMoreSales(),
+              child: viewModel.isLoadingMore
+                  ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Text('Cargar más'),
+            ),
+          ),
+      ],
     );
   }
 
-  /// Estado de carga responsive
-  Widget _buildLoadingState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          CircularProgressIndicator(
-            strokeWidth: Responsive.isMobile(context) ? 3 : 4,
+  Widget _buildSaleItem(Sale sale) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: ExpansionTile(
+        leading: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.green.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
           ),
-          SizedBox(height: Responsive.getResponsiveSpacing(context)),
-          Text(
-            'Cargando historial de ventas...',
-            style: TextStyle(
-              fontSize: Responsive.getResponsiveFontSize(context, 16),
-              color: Colors.grey[600],
+          child: const Icon(
+            Icons.shopping_cart,
+            color: Colors.green,
+          ),
+        ),
+        title: Text(
+          DateFormat('dd/MM/yyyy HH:mm').format(sale.date),
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Total: \$${sale.amount.toStringAsFixed(2)}',
+              style: const TextStyle(
+                fontWeight: FontWeight.w500,
+                color: Colors.green,
+              ),
+            ),
+            if (sale.notes != null && sale.notes!.isNotEmpty)
+              Text(
+                sale.notes!,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey[600],
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+          ],
+        ),
+        children: [
+          Container(
+            margin: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.grey[50],
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.inventory_2,
+                      color: Theme.of(context).primaryColor,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Detalles del Producto',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _buildDetailRow('Producto', sale.productName),
+                _buildDetailRow('Cantidad', '${sale.quantity} unidades'),
+                _buildDetailRow('Precio Unitario', '\$${(sale.amount / sale.quantity).toStringAsFixed(2)}'),
+                _buildDetailRow('Total', '\$${sale.amount.toStringAsFixed(2)}', isTotal: true),
+                if (sale.notes != null && sale.notes!.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  _buildDetailRow('Notas', sale.notes!),
+                ],
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.access_time,
+                      size: 16,
+                      color: Colors.grey[600],
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Vendido el ${DateFormat('dd/MM/yyyy').format(sale.date)} a las ${DateFormat('HH:mm').format(sale.date)}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
         ],
       ),
     );
-  }
-
-  /// Estado de error responsive
-  Widget _buildErrorState(String error) {
-    return Center(
-      child: Padding(
-        padding: Responsive.getResponsivePadding(context),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.error_outline,
-              size: Responsive.isMobile(context) ? 48 : 64,
-              color: Colors.red[300],
-            ),
-            SizedBox(height: Responsive.getResponsiveSpacing(context)),
-            Text(
-              error,
-              style: TextStyle(
-                fontSize: Responsive.getResponsiveFontSize(context, 16),
-              ),
-              textAlign: TextAlign.center,
-            ),
-            SizedBox(height: Responsive.getResponsiveSpacing(context)),
-            ElevatedButton.icon(
-              onPressed: _loadSales,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Reintentar'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Contenido principal de ventas responsive
-  Widget _buildSalesContent(SaleViewModel viewModel) {
-    return SingleChildScrollView(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Card(
-                  elevation: 2,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.history,
-                          color: Theme.of(context).primaryColor,
-                        ),
-                        const SizedBox(width: 8),
-                        const Text(
-                          'Historial de Ventas',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const Spacer(),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).primaryColor.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Text(
-                            '${viewModel.sales.length} ventas',
-                            style: TextStyle(
-                              color: Theme.of(context).primaryColor,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                if (viewModel.sales.isEmpty)
-                  Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.shopping_cart_outlined,
-                          size: 64,
-                          color: Colors.grey[400],
-                        ),
-                        const SizedBox(height: 16),
-                        const Text(
-                          'No hay ventas registradas',
-                          style: TextStyle(
-                            fontSize: 18,
-                            color: Colors.grey,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Las ventas que registres aparecerán aquí',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                    ),
-                  )
-                else
-                  ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: viewModel.sales.length,
-                    itemBuilder: (context, index) {
-                      final sale = viewModel.sales[index];
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        elevation: 2,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: ExpansionTile(
-                          leading: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Colors.green.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Icon(
-                              Icons.shopping_cart,
-                              color: Colors.green,
-                            ),
-                          ),
-                          title: Text(
-                            DateFormat('dd/MM/yyyy HH:mm').format(sale.date),
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Total: \$${sale.amount.toStringAsFixed(2)}',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.green,
-                                ),
-                              ),
-                              if (sale.notes != null && sale.notes!.isNotEmpty)
-                                Text(
-                                  sale.notes!,
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey[600],
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                            ],
-                          ),
-                          children: [
-                            Container(
-                              margin: const EdgeInsets.all(16),
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: Colors.grey[50],
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Icon(
-                                        Icons.inventory_2,
-                                        color: Theme.of(context).primaryColor,
-                                        size: 20,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      const Text(
-                                        'Detalles del Producto',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 16,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 12),
-                                  _buildDetailRow('Producto', sale.productName),
-                                  _buildDetailRow('Cantidad', '${sale.quantity} unidades'),
-                                  _buildDetailRow('Precio Unitario', '\$${(sale.amount / sale.quantity).toStringAsFixed(2)}'),
-                                  _buildDetailRow('Total', '\$${sale.amount.toStringAsFixed(2)}', isTotal: true),
-                                  if (sale.notes != null && sale.notes!.isNotEmpty) ...[
-                                    const SizedBox(height: 8),
-                                    _buildDetailRow('Notas', sale.notes!),
-                                  ],
-                                  const SizedBox(height: 8),
-                                  Row(
-                                    children: [
-                                      Icon(
-                                        Icons.access_time,
-                                        size: 16,
-                                        color: Colors.grey[600],
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        'Vendido el ${DateFormat('dd/MM/yyyy').format(sale.date)} a las ${DateFormat('HH:mm').format(sale.date)}',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.grey[600],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-              ],
-            ),
-          );
-
   }
 
   Widget _buildDetailRow(String label, String value, {bool isTotal = false}) {
@@ -364,4 +249,4 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
       ),
     );
   }
- }
+}

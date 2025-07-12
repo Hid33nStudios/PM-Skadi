@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
+import 'error_cases.dart';
 
 /// Tipos de errores personalizados para la aplicación
 enum ErrorType {
@@ -20,6 +21,7 @@ class AppError {
   final String? code;
   final dynamic originalError;
   final StackTrace? stackTrace;
+  final AppErrorType? appErrorType;
 
   AppError({
     required this.message,
@@ -27,6 +29,7 @@ class AppError {
     this.code,
     this.originalError,
     this.stackTrace,
+    this.appErrorType,
   });
 
   /// Crear error desde una excepción
@@ -35,28 +38,34 @@ class AppError {
 
     String message = 'Ha ocurrido un error inesperado';
     ErrorType type = ErrorType.unknown;
+    AppErrorType? appErrorType;
 
     if (error.toString().contains('network') || 
         error.toString().contains('connection') ||
         error.toString().contains('internet')) {
       type = ErrorType.network;
       message = 'Error de conexión. Verifica tu conexión a internet.';
+      appErrorType = AppErrorType.conexion;
     } else if (error.toString().contains('auth') || 
                error.toString().contains('login') ||
                error.toString().contains('unauthorized')) {
       type = ErrorType.authentication;
       message = 'Error de autenticación. Por favor, inicia sesión nuevamente.';
+      appErrorType = AppErrorType.autenticacion;
     } else if (error.toString().contains('permission') || 
                error.toString().contains('forbidden')) {
       type = ErrorType.permission;
       message = 'No tienes permisos para realizar esta acción.';
+      appErrorType = AppErrorType.permisos;
     } else if (error.toString().contains('timeout')) {
       type = ErrorType.timeout;
       message = 'La operación ha tardado demasiado. Inténtalo nuevamente.';
+      appErrorType = AppErrorType.timeout;
     } else if (error.toString().contains('server') || 
                error.toString().contains('500')) {
       type = ErrorType.server;
       message = 'Error del servidor. Inténtalo más tarde.';
+      appErrorType = AppErrorType.servidor;
     }
 
     return AppError(
@@ -64,6 +73,7 @@ class AppError {
       type: type,
       originalError: error,
       stackTrace: stackTrace,
+      appErrorType: appErrorType ?? mapErrorTypeToAppErrorType(type),
     );
   }
 
@@ -101,6 +111,29 @@ class AppError {
 
   @override
   String toString() => 'AppError($type): $message';
+}
+
+/// Mapea ErrorType (local) a AppErrorType (global)
+AppErrorType mapErrorTypeToAppErrorType(ErrorType type) {
+  switch (type) {
+    case ErrorType.network:
+      return AppErrorType.conexion;
+    case ErrorType.authentication:
+      return AppErrorType.autenticacion;
+    case ErrorType.validation:
+      return AppErrorType.validacion;
+    case ErrorType.database:
+      return AppErrorType.baseDeDatos;
+    case ErrorType.permission:
+      return AppErrorType.permisos;
+    case ErrorType.timeout:
+      return AppErrorType.timeout;
+    case ErrorType.server:
+      return AppErrorType.servidor;
+    case ErrorType.unknown:
+    default:
+      return AppErrorType.desconocido;
+  }
 }
 
 /// Clase para manejar errores de manera global

@@ -2,10 +2,16 @@ import 'package:flutter/foundation.dart';
 import '../services/migration_service.dart';
 import '../services/hybrid_data_service.dart';
 import '../utils/error_handler.dart';
+import '../utils/error_cases.dart';
 
 class MigrationViewModel extends ChangeNotifier {
   final MigrationService _migrationService;
   final HybridDataService _dataService;
+
+  String? _error;
+  AppErrorType? _errorType;
+  String? get error => _error;
+  AppErrorType? get errorType => _errorType;
 
   MigrationViewModel(this._migrationService, this._dataService);
 
@@ -44,6 +50,8 @@ class MigrationViewModel extends ChangeNotifier {
     try {
       _isCheckingData = true;
       _currentStep = 'Verificando datos en Firebase...';
+      _error = null;
+      _errorType = null;
       notifyListeners();
 
       // Verificar si hay usuario autenticado
@@ -65,8 +73,11 @@ class MigrationViewModel extends ChangeNotifier {
     } catch (e) {
       _isCheckingData = false;
       _currentStep = '';
+      final appError = AppError.fromException(e);
+      _error = appError.message;
+      _errorType = appError.appErrorType;
       notifyListeners();
-      throw AppError.fromException(e);
+      throw appError;
     }
   }
 
@@ -77,7 +88,8 @@ class MigrationViewModel extends ChangeNotifier {
       _totalSteps = 4;
       _currentProgress = 0;
       _migrationResults.clear();
-      
+      _error = null;
+      _errorType = null;
       notifyListeners();
 
       // Migrar categorías
@@ -127,6 +139,9 @@ class MigrationViewModel extends ChangeNotifier {
     } catch (e) {
       _isMigrating = false;
       _currentStep = 'Error en la migración';
+      final appError = AppError.fromException(e);
+      _error = appError.message;
+      _errorType = appError.appErrorType;
       notifyListeners();
       
       // Limpiar estado después de un delay
@@ -135,7 +150,7 @@ class MigrationViewModel extends ChangeNotifier {
         notifyListeners();
       });
       
-      throw AppError.fromException(e);
+      throw appError;
     }
   }
 
@@ -144,6 +159,8 @@ class MigrationViewModel extends ChangeNotifier {
     try {
       _isMigrating = true;
       _currentStep = 'Migrando $collection...';
+      _error = null;
+      _errorType = null;
       notifyListeners();
 
       final count = await _migrationService.migrateSpecificData(collection, limit: limit);
@@ -162,6 +179,9 @@ class MigrationViewModel extends ChangeNotifier {
     } catch (e) {
       _isMigrating = false;
       _currentStep = 'Error migrando $collection';
+      final appError = AppError.fromException(e);
+      _error = appError.message;
+      _errorType = appError.appErrorType;
       notifyListeners();
       
       // Limpiar estado después de un delay
@@ -170,7 +190,7 @@ class MigrationViewModel extends ChangeNotifier {
         notifyListeners();
       });
       
-      throw AppError.fromException(e);
+      throw appError;
     }
   }
 
@@ -179,6 +199,8 @@ class MigrationViewModel extends ChangeNotifier {
     try {
       _isExporting = true;
       _currentStep = 'Exportando datos locales...';
+      _error = null;
+      _errorType = null;
       notifyListeners();
 
       final data = await _migrationService.exportLocalData();
@@ -197,6 +219,9 @@ class MigrationViewModel extends ChangeNotifier {
     } catch (e) {
       _isExporting = false;
       _currentStep = 'Error en la exportación';
+      final appError = AppError.fromException(e);
+      _error = appError.message;
+      _errorType = appError.appErrorType;
       notifyListeners();
       
       // Limpiar estado después de un delay
@@ -205,7 +230,7 @@ class MigrationViewModel extends ChangeNotifier {
         notifyListeners();
       });
       
-      throw AppError.fromException(e);
+      throw appError;
     }
   }
 

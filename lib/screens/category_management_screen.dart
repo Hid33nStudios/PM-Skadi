@@ -4,6 +4,7 @@ import '../models/category.dart';
 import '../viewmodels/category_viewmodel.dart';
 import '../widgets/responsive_form.dart';
 import '../theme/responsive.dart';
+import '../utils/error_cases.dart';
 
 class CategoryManagementScreen extends StatefulWidget {
   final bool showAddForm;
@@ -88,23 +89,15 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
         } else {
           print('❌ Error al agregar categoría: ${context.read<CategoryViewModel>().error}');
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Error al agregar categoría: ${context.read<CategoryViewModel>().error ?? 'Error desconocido'}'),
-                backgroundColor: Colors.red,
-              ),
-            );
+            final errorType = context.read<CategoryViewModel>().errorType ?? AppErrorType.desconocido;
+            showAppError(context, errorType);
           }
         }
       } catch (e) {
         print('❌ Excepción al agregar categoría: $e');
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Error: $e'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          final errorType = context.read<CategoryViewModel>().errorType ?? AppErrorType.desconocido;
+          showAppError(context, errorType);
         }
       }
     }
@@ -142,18 +135,89 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
               ),
             );
           }
+        } else {
+          if (mounted) {
+            final errorType = context.read<CategoryViewModel>().errorType ?? AppErrorType.desconocido;
+            showAppError(context, errorType);
+          }
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Error: $e'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          final errorType = context.read<CategoryViewModel>().errorType ?? AppErrorType.desconocido;
+          showAppError(context, errorType);
         }
       }
     }
+  }
+
+  void _showEditCategoryDialog(Category category) {
+    final _editNameController = TextEditingController(text: category.name);
+    final _editDescriptionController = TextEditingController(text: category.description);
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Editar Categoría'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: _editNameController,
+                decoration: const InputDecoration(
+                  labelText: 'Nombre',
+                  border: OutlineInputBorder(),
+                ),
+                maxLength: 40,
+                validator: (value) => value == null || value.trim().isEmpty ? 'El nombre es requerido' : null,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _editDescriptionController,
+                decoration: const InputDecoration(
+                  labelText: 'Descripción',
+                  border: OutlineInputBorder(),
+                ),
+                maxLength: 100,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final newName = _editNameController.text.trim();
+                final newDesc = _editDescriptionController.text.trim();
+                if (newName.isEmpty) {
+                  showAppError(context, AppErrorType.campoObligatorio);
+                  return;
+                }
+                final updatedCategory = category.copyWith(name: newName, description: newDesc);
+                final viewModel = context.read<CategoryViewModel>();
+                final success = await viewModel.updateCategory(updatedCategory);
+                if (success) {
+                  if (mounted) {
+                    Navigator.of(context).pop();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Categoría actualizada correctamente'), backgroundColor: Colors.green),
+                    );
+                  }
+                } else {
+                  if (mounted) {
+                    final errorType = viewModel.errorType ?? AppErrorType.desconocido;
+                    showAppError(context, errorType);
+                  }
+                }
+              },
+              child: const Text('Guardar'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -168,7 +232,7 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
               _buildAddCategoryForm(),
               const SizedBox(height: 16),
             ],
-            Expanded(child: _buildCategoriesList()),
+            Expanded(child: _buildCategoryList()),
           ],
         ),
       ),
@@ -267,161 +331,69 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
   }
 
   /// Lista responsive de categorías
-  Widget _buildCategoriesList() {
-    return Consumer<CategoryViewModel>(
-      builder: (context, categoryVM, child) {
-        print('🔄 CategoryManagementScreen: Consumer builder - isLoading: ${categoryVM.isLoading}, error: ${categoryVM.error}, categories: ${categoryVM.categories.length}');
-        
-        if (categoryVM.isLoading) {
-          print('🔄 CategoryManagementScreen: Mostrando CircularProgressIndicator');
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        if (categoryVM.error != null) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.error_outline, 
-                     size: Responsive.isMobile(context) ? 48 : 64, 
-                     color: Colors.red[300]),
-                SizedBox(height: Responsive.getResponsiveSpacing(context)),
-                Text(
-                  categoryVM.error!, 
-                  style: TextStyle(
-                    fontSize: Responsive.getResponsiveFontSize(context, 16),
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                SizedBox(height: Responsive.getResponsiveSpacing(context)),
-                ElevatedButton(
-                  onPressed: _loadCategories,
-                  child: const Text('Reintentar'),
-                ),
-              ],
-            ),
-          );
-        }
-
-        if (categoryVM.categories.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.category_outlined, 
-                  size: Responsive.isMobile(context) ? 48 : 64, 
-                  color: Colors.grey,
-                ),
-                SizedBox(height: Responsive.getResponsiveSpacing(context)),
-                Text(
-                  'No hay categorías registradas',
-                  style: TextStyle(
-                    fontSize: Responsive.getResponsiveFontSize(context, 18),
-                    color: Colors.grey,
-                  ),
-                ),
-                SizedBox(height: Responsive.getResponsiveSpacing(context) / 2),
-                Text(
-                  'Presiona + para agregar la primera categoría',
-                  style: TextStyle(
-                    fontSize: Responsive.getResponsiveFontSize(context, 14),
-                    color: Colors.grey[600],
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-          );
-        }
-
-        // Layout responsive para la lista
-        if (Responsive.isDesktop(context)) {
-          // En desktop: Grid de 2 columnas para mejor aprovechamiento del espacio
-          return GridView.builder(
-            padding: EdgeInsets.all(Responsive.getResponsiveSpacing(context)),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              mainAxisSpacing: Responsive.getResponsiveSpacing(context),
-              crossAxisSpacing: Responsive.getResponsiveSpacing(context),
-              childAspectRatio: 3.5,
-            ),
-            itemCount: categoryVM.categories.length,
+  Widget _buildCategoryList() {
+    final viewModel = context.watch<CategoryViewModel>();
+    final categories = List<Category>.from(viewModel.categories)..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    if (viewModel.isLoading && categories.isEmpty) {
+      return Center(child: CircularProgressIndicator());
+    }
+    if (viewModel.error != null) {
+      return Center(child: Text(viewModel.error!));
+    }
+    if (categories.isEmpty) {
+      return Center(child: Text('No hay categorías registradas.'));
+    }
+    return Column(
+      children: [
+        Expanded(
+          child: ListView.builder(
+            itemCount: categories.length,
             itemBuilder: (context, index) {
-              final category = categoryVM.categories[index];
-              return _buildCategoryCard(category);
+              final category = categories[index];
+              return _buildCategoryItem(category);
             },
-          );
-        } else {
-          // En móvil/tablet: Lista vertical
-          return ListView.builder(
-            padding: EdgeInsets.all(Responsive.getResponsiveSpacing(context)),
-            itemCount: categoryVM.categories.length,
-            itemBuilder: (context, index) {
-              final category = categoryVM.categories[index];
-              return Container(
-                margin: EdgeInsets.only(
-                  bottom: Responsive.getResponsiveSpacing(context),
-                ),
-                child: _buildCategoryCard(category),
-              );
-            },
-          );
-        }
-      },
+          ),
+        ),
+        if (viewModel.hasMore)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: ElevatedButton(
+              onPressed: viewModel.isLoadingMore ? null : () => viewModel.loadMoreCategories(),
+              child: viewModel.isLoadingMore
+                  ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Text('Cargar más'),
+            ),
+          ),
+      ],
     );
   }
 
   /// Card individual para cada categoría
-  Widget _buildCategoryCard(Category category) {
+  Widget _buildCategoryItem(Category category) {
     return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 0),
       child: ListTile(
-        contentPadding: EdgeInsets.all(Responsive.getResponsiveSpacing(context)),
-        leading: CircleAvatar(
-          backgroundColor: Colors.amber.withOpacity(0.2),
-          child: Icon(
-            Icons.category,
-            color: Colors.amber[700],
-            size: Responsive.isMobile(context) ? 20 : 24,
-          ),
-        ),
-        title: Text(
-          category.name,
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: Responsive.getResponsiveFontSize(context, 16),
-          ),
-        ),
-        subtitle: category.description?.isNotEmpty == true 
-            ? Text(
-                category.description!,
-                style: TextStyle(
-                  fontSize: Responsive.getResponsiveFontSize(context, 14),
-                  color: Colors.grey[600],
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              )
-            : Text(
-                'Sin descripción',
-                style: TextStyle(
-                  fontSize: Responsive.getResponsiveFontSize(context, 14),
-                  color: Colors.grey[400],
-                  fontStyle: FontStyle.italic,
-                ),
+        leading: const Icon(Icons.category, color: Colors.amber),
+        title: Text(category.name),
+        subtitle: Text(category.description),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.edit, color: Colors.blue),
+              tooltip: 'Editar',
+              onPressed: () => _showEditCategoryDialog(category),
+            ),
+            IconButton(
+              icon: Icon(
+                Icons.delete_outline,
+                color: Colors.red[400],
+                size: Responsive.isMobile(context) ? 20 : 24,
               ),
-        trailing: IconButton(
-          icon: Icon(
-            Icons.delete_outline,
-            color: Colors.red[400],
-            size: Responsive.isMobile(context) ? 20 : 24,
-          ),
-          onPressed: () => _deleteCategory(category),
-          tooltip: 'Eliminar categoría',
+              onPressed: () => _deleteCategory(category),
+              tooltip: 'Eliminar categoría',
+            ),
+          ],
         ),
       ),
     );

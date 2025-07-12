@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../models/sale.dart';
 import '../../viewmodels/dashboard_viewmodel.dart';
 import 'dashboard_card.dart';
+import '../../widgets/skeleton_loading.dart';
 
 class RecentActivity extends StatelessWidget {
   final int? maxItems;
@@ -10,54 +11,25 @@ class RecentActivity extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<DashboardViewModel>(
-      builder: (context, dashboardVM, child) {
-        if (dashboardVM.isLoading) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        if (dashboardVM.error != null) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.error_outline,
-                  size: 32,
-                  color: Colors.red[300],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  dashboardVM.error!,
-                  style: const TextStyle(fontSize: 14),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-          );
-        }
-
-        final data = dashboardVM.dashboardData;
-        if (data == null) {
-          return const Center(child: Text('No hay datos disponibles'));
-        }
-
-        final recentSales = maxItems != null
-            ? data.sales.take(maxItems!).toList()
-            : data.sales.take(5).toList();
-
+    return Selector<DashboardViewModel, List>(
+      selector: (_, vm) => vm.recentSalesSummary,
+      builder: (context, recentSales, _) {
         if (recentSales.isEmpty) {
-          return Center(
-            child: Text(
-              'No hay actividad reciente',
-              style: TextStyle(fontSize: 16),
-            ),
-          );
+          return Center(child: Text('No hay actividad reciente.'));
         }
-
-        return DashboardCard(
-          title: 'Actividad Reciente',
-          child: _buildDesktopLayout(context, recentSales),
+        return ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: recentSales.length,
+          itemBuilder: (context, index) {
+            final sale = recentSales[index];
+            return ListTile(
+              leading: Icon(Icons.shopping_cart, color: Colors.green),
+              title: Text(sale.productName),
+              subtitle: Text('Cantidad: ${sale.quantity} - Monto: \$${(sale.amount / sale.quantity).toStringAsFixed(2)}'),
+              trailing: Text('${sale.date.day}/${sale.date.month}/${sale.date.year}'),
+            );
+          },
         );
       },
     );
@@ -65,6 +37,10 @@ class RecentActivity extends StatelessWidget {
 
   /// Layout para desktop
   Widget _buildDesktopLayout(BuildContext context, List<Sale> recentSales) {
+    int maxItems = 10;
+    bool showAll = false;
+    if (recentSales.length <= maxItems) showAll = true;
+    List<Sale> visibleSales = showAll ? recentSales : recentSales.take(maxItems).toList();
     return Container(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -104,16 +80,45 @@ class RecentActivity extends StatelessWidget {
           
           // Lista de actividades
           Expanded(
-            child: recentSales.isEmpty
+            child: visibleSales.isEmpty
                 ? _buildEmptyState(context)
                 : ListView.builder(
-                    itemCount: recentSales.length,
+                    itemCount: visibleSales.length,
                     itemBuilder: (context, index) {
-                      final sale = recentSales[index];
+                      final sale = visibleSales[index];
                       return _buildEnhancedActivityItem(context, sale, index);
                     },
                   ),
           ),
+          if (!showAll)
+            Center(
+              child: ElevatedButton(
+                onPressed: () => showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Toda la actividad reciente'),
+                    content: SizedBox(
+                      width: 400,
+                      height: 400,
+                      child: ListView.builder(
+                        itemCount: recentSales.length,
+                        itemBuilder: (context, index) {
+                          final sale = recentSales[index];
+                          return _buildEnhancedActivityItem(context, sale, index);
+                        },
+                      ),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Cerrar'),
+                      ),
+                    ],
+                  ),
+                ),
+                child: const Text('Ver más'),
+              ),
+            ),
         ],
       ),
     );
@@ -127,22 +132,8 @@ class RecentActivity extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: isEven 
-            ? [Colors.white, Colors.grey.shade50]
-            : [Colors.grey.shade50, Colors.white],
-        ),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            spreadRadius: 0,
-          ),
-        ],
       ),
       child: Row(
         children: [

@@ -12,6 +12,8 @@ import 'edit_product_screen.dart';
 import '../widgets/responsive_form.dart';
 import '../theme/responsive.dart';
 import '../router/app_router.dart';
+import '../utils/error_cases.dart';
+import '../viewmodels/dashboard_viewmodel.dart';
 
 class ProductDetailScreen extends StatefulWidget {
   final String productId;
@@ -34,12 +36,18 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   final _quantityController = TextEditingController();
   final _noteController = TextEditingController();
   MovementType _selectedType = MovementType.entry;
+  List<Movement> _movements = [];
+  bool _isLoadingMovements = false;
+  bool _hasMoreMovements = true;
+  int _movementOffset = 0;
+  final int _movementLimit = 10;
 
   @override
   void initState() {
     super.initState();
     _loadProduct();
     _loadCategory();
+    _loadInitialMovements();
   }
 
   @override
@@ -72,6 +80,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
           _errorMessage = e.toString();
           _isLoading = false;
         });
+        final productViewModel = context.read<ProductViewModel>();
+        final errorType = productViewModel.errorType ?? AppErrorType.desconocido;
+        showAppError(context, errorType);
       }
     }
   }
@@ -119,24 +130,68 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         setState(() {
           _categoryName = 'Sin categoría';
         });
+        final categoryViewModel = context.read<CategoryViewModel>();
+        final errorType = categoryViewModel.errorType ?? AppErrorType.desconocido;
+        showAppError(context, errorType);
       }
+    }
+  }
+
+  Future<void> _loadInitialMovements() async {
+    setState(() {
+      _movements = [];
+      _movementOffset = 0;
+      _hasMoreMovements = true;
+      _isLoadingMovements = true;
+    });
+    await _loadMoreMovements();
+  }
+
+  Future<void> _loadMoreMovements() async {
+    if (_isLoadingMovements || !_hasMoreMovements || _product == null) return;
+    setState(() {
+      _isLoadingMovements = true;
+    });
+    try {
+      final movementVM = context.read<MovementViewModel>();
+      final allMovements = await movementVM.dataService.getAllMovements(offset: _movementOffset, limit: _movementLimit);
+      final newMovements = allMovements.where((m) => m.productId == _product!.id).toList();
+      setState(() {
+        // Filtrar duplicados por id
+        final existingIds = _movements.map((m) => m.id).toSet();
+        final uniqueNewMovements = newMovements.where((m) => !existingIds.contains(m.id)).toList();
+        _movements.addAll(uniqueNewMovements);
+        _movementOffset += uniqueNewMovements.length;
+        if (uniqueNewMovements.length < _movementLimit) {
+          _hasMoreMovements = false;
+        }
+      });
+    } catch (e) {
+      final movementVM = context.read<MovementViewModel>();
+      final errorType = movementVM.errorType ?? AppErrorType.desconocido;
+      showAppError(context, errorType);
+      // Manejo simple de error
+    } finally {
+      setState(() {
+        _isLoadingMovements = false;
+      });
     }
   }
 
   Future<void> _addMovement() async {
     if (_quantityController.text.isEmpty) {
-      context.showError('Por favor ingresa una cantidad');
+      showAppError(context, AppErrorType.campoObligatorio);
       return;
     }
 
     final quantity = int.tryParse(_quantityController.text);
     if (quantity == null || quantity <= 0) {
-      context.showError('La cantidad debe ser un número positivo');
+      showAppError(context, AppErrorType.valorFueraDeRango);
       return;
     }
 
     if (_selectedType == MovementType.exit && quantity > _product!.stock) {
-      context.showError('No hay suficiente stock disponible');
+      showAppError(context, AppErrorType.stockInsuficiente);
       return;
     }
 
@@ -154,7 +209,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       );
 
       await context.read<MovementViewModel>().addMovement(movement);
-      await context.read<ProductViewModel>().loadProducts();
+      await context.read<ProductViewModel>().loadInitialProducts();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -206,6 +261,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         final productViewModel = context.read<ProductViewModel>();
         await productViewModel.deleteProduct(_product!.id);
         
+        // Recargar dashboard inmediatamente
+        context.read<DashboardViewModel>().loadDashboardData();
         if (mounted) {
           CustomSnackBar.showSuccess(
             context: context,
@@ -538,31 +595,51 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     return Card(
       elevation: 2,
       child: Container(
-        height: 200,
+        constraints: const BoxConstraints(minHeight: 200),
         padding: const EdgeInsets.all(16),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.history,
-                size: 48,
-                color: theme.colorScheme.onSurface.withOpacity(0.5),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.history, color: theme.colorScheme.primary),
+                const SizedBox(width: 8),
+                Text('Historial de Movimientos', style: theme.textTheme.titleMedium),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (_isLoadingMovements && _movements.isEmpty)
+              const Center(child: CircularProgressIndicator()),
+            if (_movements.isEmpty && !_isLoadingMovements)
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Text('No hay movimientos para este producto.', style: theme.textTheme.bodyMedium),
               ),
-              const SizedBox(height: 16),
-              Text(
-                'Historial de Movimientos',
-                style: theme.textTheme.titleMedium,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Funcionalidad en desarrollo',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurface.withOpacity(0.7),
+            if (_movements.isNotEmpty)
+              ..._movements.map((m) => ListTile(
+                    leading: Icon(
+                      m.type == MovementType.entry ? Icons.add : Icons.remove,
+                      color: m.type == MovementType.entry ? Colors.green : Colors.red,
+                    ),
+                    title: Text(
+                      '${m.type == MovementType.entry ? 'Entrada' : 'Salida'} de ${m.quantity} unidades',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: Text('${_formatDate(m.date)}${m.note != null && m.note!.isNotEmpty ? ' - ${m.note}' : ''}'),
+                  )),
+            if (_hasMoreMovements && !_isLoadingMovements)
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: ElevatedButton(
+                    onPressed: _isLoadingMovements ? null : _loadMoreMovements,
+                    child: _isLoadingMovements
+                        ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Text('Cargar más'),
+                  ),
                 ),
               ),
-            ],
-          ),
+          ],
         ),
       ),
     );

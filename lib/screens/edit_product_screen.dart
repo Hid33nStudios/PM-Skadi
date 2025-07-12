@@ -8,6 +8,8 @@ import '../widgets/custom_snackbar.dart';
 import '../theme/responsive.dart';
 import '../router/app_router.dart';
 import '../utils/error_handler.dart';
+import '../utils/error_cases.dart';
+import '../viewmodels/dashboard_viewmodel.dart';
 
 class EditProductScreen extends StatefulWidget {
   final String productId;
@@ -89,6 +91,9 @@ class _EditProductScreenState extends State<EditProductScreen> {
           _errorMessage = e.toString();
           _isLoading = false;
         });
+        final productViewModel = context.read<ProductViewModel>();
+        final errorType = productViewModel.errorType ?? AppErrorType.desconocido;
+        showAppError(context, errorType);
       }
     }
   }
@@ -128,6 +133,9 @@ class _EditProductScreenState extends State<EditProductScreen> {
 
       await productViewModel.updateProduct(updatedProduct);
 
+      // Recargar dashboard inmediatamente
+      context.read<DashboardViewModel>().loadDashboardData();
+
       if (mounted) {
         CustomSnackBar.showSuccess(
           context: context,
@@ -137,7 +145,9 @@ class _EditProductScreenState extends State<EditProductScreen> {
       }
     } catch (e) {
       if (mounted) {
-        context.showError(e);
+        final productViewModel = context.read<ProductViewModel>();
+        final errorType = productViewModel.errorType ?? AppErrorType.desconocido;
+        showAppError(context, errorType);
       }
     } finally {
       if (mounted) {

@@ -54,20 +54,6 @@ class _SkeletonWidgetState extends State<SkeletonWidget>
           height: widget.height,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(widget.borderRadius),
-            gradient: LinearGradient(
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-              colors: [
-                widget.color ?? Colors.grey[300]!,
-                widget.color?.withOpacity(0.5) ?? Colors.grey[100]!,
-                widget.color ?? Colors.grey[300]!,
-              ],
-              stops: [
-                0.0,
-                0.5 + (_animation.value * 0.1),
-                1.0,
-              ],
-            ),
           ),
         );
       },
@@ -394,16 +380,6 @@ class SkeletonLoading extends StatelessWidget {
       margin: margin,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(borderRadius),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.grey.shade200,
-            Colors.grey.shade100,
-            Colors.grey.shade200,
-          ],
-          stops: const [0.0, 0.5, 1.0],
-        ),
       ),
     );
   }
@@ -433,14 +409,6 @@ class SkeletonCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
-        ],
-        border: Border.all(color: Colors.grey.shade100, width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -542,7 +510,6 @@ class SkeletonList extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.shade100, width: 1),
         ),
         child: Row(
           children: [

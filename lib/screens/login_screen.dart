@@ -7,6 +7,7 @@ import '../widgets/custom_snackbar.dart';
 import '../widgets/responsive_form.dart';
 import '../theme/responsive.dart';
 import '../router/app_router.dart';
+import '../utils/error_cases.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -15,7 +16,7 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin {
+class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -23,51 +24,8 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
   bool _isLoading = false;
   bool _rememberUser = false;
 
-  late final AnimationController _mainAnimationController;
-  late final AnimationController _glowAnimationController;
-  late final AnimationController _pulseAnimationController;
-
-  late final Animation<double> _logoAnimation;
-  late final Animation<double> _backgroundAnimation;
-  late final Animation<double> _pulseAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    _mainAnimationController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1500),
-    );
-
-    _glowAnimationController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 2),
-    )..repeat(reverse: true);
-
-    _pulseAnimationController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 3),
-    )..repeat(reverse: true);
-
-    _logoAnimation = _createAnimation(0.0, 0.6);
-    _backgroundAnimation = _createAnimation(0.2, 0.8);
-    _pulseAnimation = _pulseAnimationController;
-
-    _mainAnimationController.forward();
-  }
-
-  Animation<double> _createAnimation(double begin, double end) {
-    return CurvedAnimation(
-      parent: _mainAnimationController,
-      curve: Interval(begin, end, curve: Curves.easeInOutCubic),
-    );
-  }
-
   @override
   void dispose() {
-    _mainAnimationController.dispose();
-    _glowAnimationController.dispose();
-    _pulseAnimationController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -91,10 +49,9 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
       }
     } catch (e) {
       if (mounted) {
-        CustomSnackBar.showError(
-          context: context,
-          message: e.toString(),
-        );
+        final authViewModel = context.read<AuthViewModel>();
+        final errorType = authViewModel.errorType ?? AppErrorType.desconocido;
+        showAppError(context, errorType);
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -262,29 +219,21 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
     return Column(
       children: [
         // Logo animado
-        AnimatedBuilder(
-          animation: _pulseAnimation,
-          builder: (context, child) {
-            return Transform.scale(
-              scale: 1.0 + (_pulseAnimation.value * 0.05),
-              child: Container(
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: theme.primaryColor.withValues(alpha: 0.2),
-                      blurRadius: 20,
-                      spreadRadius: 5,
-                    ),
-                  ],
-                ),
-                child: Image.asset(
-                  'assets/images/logo.png',
-                  height: 120,
-                ),
+        Container(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: theme.primaryColor.withValues(alpha: 0.2),
+                blurRadius: 20,
+                spreadRadius: 5,
               ),
-            );
-          },
+            ],
+          ),
+          child: Image.asset(
+            'assets/images/logo.webp',
+            height: 120,
+          ),
         ),
         
         SizedBox(height: Responsive.getResponsiveSpacing(context) * 1.5),
@@ -367,10 +316,10 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
           ),
           child: Text(
             'Versión Única',
-            style: GoogleFonts.bebasNeue(
+            style: GoogleFonts.poppins(
               color: Colors.black,
               fontSize: Responsive.getResponsiveFontSize(context, 14),
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ),
@@ -385,14 +334,9 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
       child: Stack(
         children: [
           // Fondo animado con puntos
-          AnimatedBuilder(
-            animation: _backgroundAnimation,
-            builder: (context, child) {
-              return CustomPaint(
-                painter: _DotPainter(animation: _glowAnimationController),
-                child: Container(),
-              );
-            },
+          CustomPaint(
+            painter: _DotPainter(),
+            child: Container(),
           ),
           // Contenido del panel
           Center(
@@ -402,77 +346,29 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   // Logo grande
-                  AnimatedBuilder(
-                    animation: _logoAnimation,
-                    builder: (context, child) {
-                      return FadeTransition(
-                        opacity: _logoAnimation,
-                        child: SlideTransition(
-                          position: Tween<Offset>(
-                            begin: const Offset(0, -0.2),
-                            end: Offset.zero,
-                          ).animate(_logoAnimation),
-                          child: Image.asset(
-                            'assets/images/logs.png',
-                            height: isLargeDesktop ? 180 : 140,
-                          ),
-                        ),
-                      );
-                    },
+                  Image.asset(
+                    'assets/images/logo.webp',
+                    height: isLargeDesktop ? 180 : 140,
                   ),
                   
                   SizedBox(height: Responsive.getResponsiveSpacing(context) * 1.5),
                   
                   // Símbolo &
-                  AnimatedBuilder(
-                    animation: _glowAnimationController,
-                    builder: (context, child) {
-                      return Container(
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            for (int i = 1; i <= 2; i++)
-                              BoxShadow(
-                                color: theme.primaryColor.withValues(
-                                  alpha: 0.3 * _glowAnimationController.value,
-                                ),
-                                spreadRadius: i * 6.0 * _glowAnimationController.value,
-                                blurRadius: 20.0,
-                              ),
-                          ],
-                        ),
-                        child: Text(
-                          '&',
-                          style: theme.textTheme.displayLarge?.copyWith(
-                            color: theme.primaryColor.withValues(alpha: 0.9),
-                            fontWeight: FontWeight.bold,
-                            fontSize: Responsive.getResponsiveFontSize(context, 36),
-                          ),
-                        ),
-                      );
-                    },
+                  Text(
+                    '&',
+                    style: theme.textTheme.displayLarge?.copyWith(
+                      color: theme.primaryColor.withValues(alpha: 0.9),
+                      fontWeight: FontWeight.bold,
+                      fontSize: Responsive.getResponsiveFontSize(context, 36),
+                    ),
                   ),
                   
                   SizedBox(height: Responsive.getResponsiveSpacing(context) * 1.5),
                   
                   // Logo principal
-                  AnimatedBuilder(
-                    animation: _logoAnimation,
-                    builder: (context, child) {
-                      return FadeTransition(
-                        opacity: _logoAnimation,
-                        child: SlideTransition(
-                          position: Tween<Offset>(
-                            begin: const Offset(0, 0.2),
-                            end: Offset.zero,
-                          ).animate(_logoAnimation),
-                          child: Image.asset(
-                            'assets/images/logo.png',
-                            height: isLargeDesktop ? 220 : 180,
-                          ),
-                        ),
-                      );
-                    },
+                  Image.asset(
+                    'assets/images/logo.webp',
+                    height: isLargeDesktop ? 220 : 180,
                   ),
                   
                   if (isLargeDesktop) ...[
@@ -560,29 +456,21 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
     return Column(
       children: [
         // Logo más pequeño
-        AnimatedBuilder(
-          animation: _pulseAnimation,
-          builder: (context, child) {
-            return Transform.scale(
-              scale: 1.0 + (_pulseAnimation.value * 0.03),
-              child: Container(
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: theme.primaryColor.withValues(alpha: 0.2),
-                      blurRadius: 15,
-                      spreadRadius: 3,
-                    ),
-                  ],
-                ),
-                child: Image.asset(
-                  'assets/images/logo.png',
-                  height: 150,
-                ),
+        Container(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: theme.primaryColor.withValues(alpha: 0.2),
+                blurRadius: 15,
+                spreadRadius: 3,
               ),
-            );
-          },
+            ],
+          ),
+          child: Image.asset(
+            'assets/images/logo.webp',
+            height: 150,
+          ),
         ),
         
         SizedBox(height: Responsive.getResponsiveSpacing(context)),
@@ -828,10 +716,10 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
           ),
           child: Text(
             'Versión Única',
-            style: GoogleFonts.bebasNeue(
+            style: GoogleFonts.poppins(
               color: Colors.black,
               fontSize: 12,
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ),
@@ -888,22 +776,18 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
 }
 
 class _DotPainter extends CustomPainter {
-  final Animation<double> animation;
-  _DotPainter({required this.animation}) : super(repaint: animation);
-
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()..color = Colors.white.withValues(alpha: 0.04);
     const double spacing = 40.0;
-    final double offset = animation.value * spacing;
 
-    for (double i = (offset % spacing) - spacing; i < size.width; i += spacing) {
-      for (double j = (offset % spacing) - spacing; j < size.height; j += spacing) {
+    for (double i = 0; i < size.width; i += spacing) {
+      for (double j = 0; j < size.height; j += spacing) {
         canvas.drawCircle(Offset(i, j), 1.5, paint);
       }
     }
   }
 
   @override
-  bool shouldRepaint(covariant _DotPainter oldDelegate) => false;
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 } 

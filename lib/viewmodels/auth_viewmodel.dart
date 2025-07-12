@@ -4,6 +4,8 @@ import '../models/user_profile.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
 import '../utils/error_handler.dart';
+import '../utils/error_cases.dart';
+import 'dart:async';
 
 class AuthViewModel extends foundation.ChangeNotifier {
   final AuthService _authService;
@@ -12,18 +14,40 @@ class AuthViewModel extends foundation.ChangeNotifier {
   User? _currentUser;
   bool _isLoading = false;
   String? _error;
+  AppErrorType? _errorType;
+  bool _isAuthLoading = true;
+  late final StreamSubscription<User?> _authSubscription;
 
-  AuthViewModel(this._authService, this._firestoreService);
+  AuthViewModel(this._authService, this._firestoreService) {
+    // Verificar usuario actual inmediatamente
+    _currentUser = _authService.currentUser;
+    _isAuthLoading = false;
+    
+    // Escuchar cambios de autenticación
+    _authSubscription = _authService.authStateChanges.listen((user) {
+      _currentUser = user;
+      notifyListeners();
+    });
+  }
 
   User? get currentUser => _currentUser;
   bool get isLoading => _isLoading;
   String? get error => _error;
+  AppErrorType? get errorType => _errorType;
   bool get isAuthenticated => _currentUser != null;
+  bool get isAuthLoading => _isAuthLoading;
+
+  @override
+  void dispose() {
+    _authSubscription.cancel();
+    super.dispose();
+  }
 
   Future<bool> signIn(String email, String password) async {
     try {
       _isLoading = true;
       _error = null;
+      _errorType = null;
       notifyListeners();
 
       print('🔄 AuthViewModel: Iniciando sesión con email: $email');
@@ -38,12 +62,15 @@ class AuthViewModel extends foundation.ChangeNotifier {
         return true;
       } else {
         _error = 'Credenciales inválidas';
+        _errorType = AppErrorType.autenticacion;
         _isLoading = false;
         notifyListeners();
         return false;
       }
     } catch (e, stackTrace) {
-      _error = AppError.fromException(e, stackTrace).message;
+      final appError = AppError.fromException(e, stackTrace);
+      _error = appError.message;
+      _errorType = appError.appErrorType;
       _isLoading = false;
       notifyListeners();
       return false;
@@ -179,6 +206,7 @@ class AuthViewModel extends foundation.ChangeNotifier {
 
   void clearError() {
     _error = null;
+    _errorType = null;
     notifyListeners();
   }
 

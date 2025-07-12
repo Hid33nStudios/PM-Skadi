@@ -5,10 +5,14 @@ import '../services/hybrid_data_service.dart';
 import '../utils/error_handler.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../utils/error_cases.dart';
 
 class SyncViewModel extends ChangeNotifier {
   final SyncService _syncService;
   final HybridDataService _hybridService;
+
+  AppErrorType? _errorType;
+  AppErrorType? get errorType => _errorType;
 
   SyncViewModel(this._syncService, this._hybridService);
 
@@ -20,6 +24,9 @@ class SyncViewModel extends ChangeNotifier {
   List<Map<String, dynamic>> _pendingChanges = [];
   Timer? _statusTimer;
   bool _isFirebaseConnected = true;
+  DateTime? _lastFirebaseCheck;
+  bool _lastFirebaseCheckResult = true;
+  bool isInitialSyncDone = false;
 
   // Getters
   bool get isOnline => _isOnline;
@@ -34,7 +41,7 @@ class SyncViewModel extends ChangeNotifier {
     try {
       // Obtener estado inicial
       await _updateSyncStatus();
-      await checkFirebaseConnection();
+      await checkFirebaseConnection(force: true);
       
       // Configurar timer para actualizar estado
       _startStatusTimer();
@@ -56,12 +63,17 @@ class SyncViewModel extends ChangeNotifier {
       final syncStatus = _syncService.getSyncStatus();
       print('📊 SyncViewModel: Estado de sincronización: $syncStatus');
       
-      _isOnline = hybridStatus['isOnline'] as bool;
-      _isSyncing = syncStatus['isSyncing'] as bool;
-      _lastSyncTime = hybridStatus['lastSync'] != null 
+      final newIsOnline = hybridStatus['isOnline'] as bool;
+      final newIsSyncing = syncStatus['isSyncing'] as bool;
+      final newLastSyncTime = hybridStatus['lastSync'] != null 
           ? DateTime.parse(hybridStatus['lastSync'] as String)
           : null;
-      _pendingChangesCount = hybridStatus['pendingOperations'] as int;
+      final newPendingChangesCount = hybridStatus['pendingOperations'] as int;
+      bool changed = false;
+      if (_isOnline != newIsOnline) { _isOnline = newIsOnline; changed = true; }
+      if (_isSyncing != newIsSyncing) { _isSyncing = newIsSyncing; changed = true; }
+      if (_lastSyncTime != newLastSyncTime) { _lastSyncTime = newLastSyncTime; changed = true; }
+      if (_pendingChangesCount != newPendingChangesCount) { _pendingChangesCount = newPendingChangesCount; changed = true; }
       
       print('📊 SyncViewModel: Estado final:');
       print('  - Online: $_isOnline');
@@ -72,8 +84,23 @@ class SyncViewModel extends ChangeNotifier {
       // Obtener estadísticas de la base de datos local
       final stats = await _hybridService.getStats();
       print('📊 SyncViewModel: Estadísticas: $stats');
+      // Marcar sincronización inicial como lista SIEMPRE tras la primera llamada exitosa
+      if (!isInitialSyncDone) {
+        isInitialSyncDone = true;
+        print('✅ SyncViewModel: Sincronización inicial marcada como completada (independiente de si hay datos)');
+        // También marcar como online si hay conexión
+        if (_isOnline && _isFirebaseConnected) {
+          print('✅ SyncViewModel: Estado online y Firebase conectado - marcando como sincronizado');
+        }
+        notifyListeners();
+      }
       
-      notifyListeners();
+      // Si hay usuario autenticado y está online, marcar como sincronizado
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid != null && _isOnline && _isFirebaseConnected && _pendingChangesCount == 0) {
+        print('✅ SyncViewModel: Usuario autenticado, online y sin pendientes - estado verde');
+      }
+      if (changed) notifyListeners();
     } catch (e) {
       print('❌ SyncViewModel: Error actualizando estado: $e');
       throw AppError.fromException(e);
@@ -81,47 +108,72 @@ class SyncViewModel extends ChangeNotifier {
   }
 
   /// Verificar conexión real con Firebase (leyendo el doc del usuario)
-  Future<void> checkFirebaseConnection() async {
+  Future<void> checkFirebaseConnection({bool force = false}) async {
     try {
       print('🔄 SyncViewModel: Verificando conexión con Firebase...');
       final uid = FirebaseAuth.instance.currentUser?.uid;
       if (uid == null) {
         print('❌ SyncViewModel: No hay usuario autenticado');
-        _isFirebaseConnected = false;
-        notifyListeners();
+        if (_isFirebaseConnected != false) {
+          _isFirebaseConnected = false;
+          notifyListeners();
+        }
         return;
       }
       print('📊 SyncViewModel: UID del usuario: $uid');
+      final now = DateTime.now();
+      if (!force && _lastFirebaseCheck != null && now.difference(_lastFirebaseCheck!).inMinutes < 5) {
+        // Usar el resultado cacheado por más tiempo
+        if (_isFirebaseConnected != _lastFirebaseCheckResult) {
+          _isFirebaseConnected = _lastFirebaseCheckResult;
+          notifyListeners();
+        }
+        print('📊 SyncViewModel: Usando resultado cacheado de conexión Firebase: $_isFirebaseConnected');
+        return;
+      }
       final doc = await FirebaseFirestore.instance.collection('pm').doc(uid).get();
       print('📊 SyncViewModel: Documento existe: ${doc.exists}');
+      bool newResult = false;
       if (doc.exists) {
         final data = doc.data();
         print('📊 SyncViewModel: Datos del documento: $data');
         if (data?['username'] != null || data?['email'] != null) {
-          _isFirebaseConnected = true;
+          newResult = true;
           print('✅ SyncViewModel: Conexión con Firebase exitosa');
         } else {
-          _isFirebaseConnected = false;
+          newResult = false;
           print('❌ SyncViewModel: Documento existe pero no tiene username/email');
         }
       } else {
-        _isFirebaseConnected = false;
+        newResult = false;
         print('❌ SyncViewModel: Documento del usuario no existe');
       }
+      _lastFirebaseCheck = now;
+      _lastFirebaseCheckResult = newResult;
+      if (_isFirebaseConnected != newResult) {
+        _isFirebaseConnected = newResult;
+        notifyListeners();
+      }
     } catch (e) {
-      _isFirebaseConnected = false;
+      if (_isFirebaseConnected != false) {
+        _isFirebaseConnected = false;
+        notifyListeners();
+      }
       print('❌ SyncViewModel: Error verificando conexión con Firebase: $e');
     }
     print('📊 SyncViewModel: Estado de conexión Firebase: $_isFirebaseConnected');
-    notifyListeners();
   }
 
   /// Iniciar timer de actualización de estado
   void _startStatusTimer() {
-    // Actualizar estado cada 5 segundos
-    _statusTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+    // Actualizar estado cada 2 minutos (menos frecuente)
+    _statusTimer = Timer.periodic(const Duration(minutes: 2), (_) {
       _updateSyncStatus();
-      checkFirebaseConnection();
+      // Solo verificar Firebase cada 5 minutos
+      if (_lastFirebaseCheck == null || 
+          DateTime.now().difference(_lastFirebaseCheck!).inMinutes >= 5) {
+        checkFirebaseConnection();
+      }
     });
   }
 
@@ -130,8 +182,11 @@ class SyncViewModel extends ChangeNotifier {
     try {
       await _hybridService.forceSync();
       await _updateSyncStatus();
+      _errorType = null;
     } catch (e) {
-      throw AppError.fromException(e);
+      final appError = AppError.fromException(e);
+      _errorType = appError.appErrorType;
+      throw appError;
     }
   }
 
@@ -141,8 +196,11 @@ class SyncViewModel extends ChangeNotifier {
       // Limpiar datos locales (cuidado: esto eliminará todos los datos)
       await _hybridService.clearLocalData();
       await _updateSyncStatus();
+      _errorType = null;
     } catch (e) {
-      throw AppError.fromException(e);
+      final appError = AppError.fromException(e);
+      _errorType = appError.appErrorType;
+      throw appError;
     }
   }
 
@@ -209,7 +267,15 @@ class SyncViewModel extends ChangeNotifier {
     if (_pendingChangesCount > 0) {
       return 0xFFFFB74D; // Amarillo
     }
-    return 0xFF66BB6A; // Verde
+    
+    // Si está online, Firebase conectado, no sincronizando y no hay pendientes = VERDE
+    // También verde si hay usuario autenticado y está online
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null && _isOnline && _isFirebaseConnected) {
+      return 0xFF66BB6A; // Verde
+    }
+    
+    return 0xFF66BB6A; // Verde por defecto si está online
   }
 
   /// Obtener resumen de cambios pendientes

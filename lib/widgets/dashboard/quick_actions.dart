@@ -308,34 +308,12 @@ class QuickActions extends StatelessWidget {
         child: Container(
           padding: EdgeInsets.all(isMobile ? 3 : 12),
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: isPrimary
-                ? [
-                    color.withValues(alpha: 0.1),
-                    color.withValues(alpha: 0.2),
-                  ]
-                : [
-                    Colors.grey.shade50,
-                    Colors.white,
-                  ],
-            ),
+            color: isPrimary ? color.withValues(alpha: 0.15) : Colors.white,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
               color: isPrimary ? color.withValues(alpha: 0.3) : Colors.grey.shade200,
               width: isPrimary ? 1 : 1,
             ),
-            boxShadow: [
-              BoxShadow(
-                color: isPrimary 
-                  ? color.withValues(alpha: 0.2)
-                  : Colors.black.withValues(alpha: 0.05),
-                blurRadius: isPrimary ? 4 : 2,
-                spreadRadius: isPrimary ? 0 : 0,
-                offset: const Offset(0, 1),
-              ),
-            ],
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -343,9 +321,7 @@ class QuickActions extends StatelessWidget {
               Container(
                 padding: EdgeInsets.all(isMobile ? 3 : 8),
                 decoration: BoxDecoration(
-                  color: isPrimary 
-                    ? color.withValues(alpha: 0.15)
-                    : color.withValues(alpha: 0.1),
+                  color: isPrimary ? color.withValues(alpha: 0.15) : Colors.white,
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
@@ -386,39 +362,16 @@ class QuickActions extends StatelessWidget {
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
         onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
+        child: Container(
           width: double.infinity,
           height: double.infinity,
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: isPrimary
-                ? [
-                    color.withValues(alpha: 0.08),
-                    color.withValues(alpha: 0.15),
-                  ]
-                : [
-                    Colors.white,
-                    Colors.grey.shade50,
-                  ],
-            ),
+            color: isPrimary ? color.withValues(alpha: 0.08) : Colors.white,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: isPrimary ? color.withValues(alpha: 0.3) : Colors.grey.shade200,
               width: isPrimary ? 2 : 1,
             ),
-            boxShadow: [
-              BoxShadow(
-                color: isPrimary 
-                  ? color.withValues(alpha: 0.15)
-                  : Colors.black.withValues(alpha: 0.08),
-                blurRadius: isPrimary ? 12 : 6,
-                spreadRadius: isPrimary ? 2 : 0,
-                offset: const Offset(0, 3),
-              ),
-            ],
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -426,25 +379,8 @@ class QuickActions extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: isPrimary
-                      ? [
-                          color.withValues(alpha: 0.2),
-                          color.withValues(alpha: 0.3),
-                        ]
-                      : [
-                          color.withValues(alpha: 0.1),
-                          color.withValues(alpha: 0.2),
-                        ],
-                  ),
+                  color: isPrimary ? color.withValues(alpha: 0.2) : Colors.white,
                   shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: color.withValues(alpha: 0.3),
-                      blurRadius: 6,
-                      spreadRadius: 1,
-                    ),
-                  ],
                 ),
                 child: Icon(
                   icon,
@@ -477,27 +413,12 @@ class QuickActions extends StatelessWidget {
     return Container(
       height: 35,
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.amber.withValues(alpha: 0.1),
-            Colors.orange.withValues(alpha: 0.15),
-          ],
-        ),
+        color: Colors.amber.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: Colors.amber.withValues(alpha: 0.3),
           width: 1,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.amber.withValues(alpha: 0.2),
-            blurRadius: 4,
-            spreadRadius: 0,
-            offset: const Offset(0, 1),
-          ),
-        ],
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(6),

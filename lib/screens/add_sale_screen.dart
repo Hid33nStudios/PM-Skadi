@@ -9,6 +9,8 @@ import '../services/auth_service.dart';
 import '../widgets/responsive_form.dart';
 import '../theme/responsive.dart';
 import 'barcode_scanner_screen.dart';
+import '../utils/error_cases.dart';
+import '../viewmodels/dashboard_viewmodel.dart';
 
 class AddSaleScreen extends StatefulWidget {
   const AddSaleScreen({super.key});
@@ -44,7 +46,7 @@ class _AddSaleScreenState extends State<AddSaleScreen> {
   }
 
   Future<void> _loadProducts() async {
-    await context.read<ProductViewModel>().loadProducts();
+    await context.read<ProductViewModel>().loadInitialProducts();
   }
 
   Future<void> _scanBarcode() async {
@@ -113,6 +115,18 @@ class _AddSaleScreenState extends State<AddSaleScreen> {
       return;
     }
 
+    // Validar stock insuficiente antes de guardar la venta
+    Product? product;
+    try {
+      product = context.read<ProductViewModel>().products.firstWhere((p) => p.id == _selectedProductId);
+    } catch (_) {
+      product = null;
+    }
+    if (product != null && _quantity > product.stock) {
+      showAppError(context, AppErrorType.stockInsuficiente);
+      return;
+    }
+
     print('📦 [AddSaleScreen] Datos de la venta:');
     print('  - Producto ID: $_selectedProductId');
     print('  - Producto Nombre: $_selectedProductName');
@@ -158,6 +172,8 @@ class _AddSaleScreenState extends State<AddSaleScreen> {
       
       if (success) {
         print('✅ [AddSaleScreen] Venta guardada exitosamente');
+        // Recargar dashboard inmediatamente
+        context.read<DashboardViewModel>().loadDashboardData();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -171,23 +187,16 @@ class _AddSaleScreenState extends State<AddSaleScreen> {
       } else {
         print('❌ [AddSaleScreen] Error al guardar venta: ${saleViewModel.error}');
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Error al registrar la venta: ${saleViewModel.error ?? 'Error desconocido'}'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          final errorType = saleViewModel.errorType ?? AppErrorType.desconocido;
+          showAppError(context, errorType);
         }
       }
     } catch (e) {
       print('❌ [AddSaleScreen] Excepción al guardar venta: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        final saleViewModel = context.read<SaleViewModel>();
+        final errorType = saleViewModel.errorType ?? AppErrorType.desconocido;
+        showAppError(context, errorType);
       }
     } finally {
       if (mounted) {
@@ -384,32 +393,21 @@ class _AddSaleScreenState extends State<AddSaleScreen> {
       label: 'Seleccionar Producto',
       helperText: 'Toca un producto para seleccionarlo',
       prefix: Icon(Icons.inventory, color: Colors.blue),
-      child: FutureBuilder<List<Product>>(
-        future: productVM.searchProducts(_searchQuery),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(16.0),
-                child: CircularProgressIndicator(),
-              ),
-            );
+      child: Builder(
+        builder: (context) {
+          final products = productVM.products;
+          final filteredProducts = _searchQuery.isEmpty
+              ? products
+              : products.where((p) =>
+                  p.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+                  (p.barcode?.toLowerCase().contains(_searchQuery.toLowerCase()) ?? false)
+                ).toList();
+          if (productVM.isLoading && products.isEmpty) {
+            return const Center(child: CircularProgressIndicator());
           }
-          
-          if (snapshot.hasError) {
-            return Center(
-              child: Padding(
-                padding: EdgeInsets.all(16.0),
-                child: Text(
-                  'Error: ${snapshot.error}',
-                  style: TextStyle(color: Colors.red[600]),
-                ),
-              ),
-            );
+          if (productVM.error != null) {
+            return Center(child: Text(productVM.error!));
           }
-          
-          final filteredProducts = snapshot.data ?? [];
-          
           if (filteredProducts.isEmpty) {
             return Center(
               child: Padding(
@@ -436,65 +434,78 @@ class _AddSaleScreenState extends State<AddSaleScreen> {
               ),
             );
           }
-
-          return ListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: filteredProducts.length,
-            itemBuilder: (context, index) {
-              final product = filteredProducts[index];
-              return Card(
-                margin: EdgeInsets.only(
-                  bottom: Responsive.getResponsiveSpacing(context),
-                ),
-                child: ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: Colors.blue.withOpacity(0.2),
-                    child: Icon(
-                      Icons.inventory_2,
-                      color: Colors.blue[700],
-                      size: Responsive.isMobile(context) ? 20 : 24,
+          return Column(
+            children: [
+              ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: filteredProducts.length,
+                itemBuilder: (context, index) {
+                  final product = filteredProducts[index];
+                  return Card(
+                    margin: EdgeInsets.only(
+                      bottom: Responsive.getResponsiveSpacing(context),
                     ),
-                  ),
-                  title: Text(
-                    product.name,
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: Responsive.getResponsiveFontSize(context, 16),
-                    ),
-                  ),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Stock: ${product.stock}',
-                        style: TextStyle(
-                          fontSize: Responsive.getResponsiveFontSize(context, 14),
-                          color: product.stock > 0 ? Colors.green[600] : Colors.red[600],
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: Colors.blue.withOpacity(0.2),
+                        child: Icon(
+                          Icons.inventory_2,
+                          color: Colors.blue[700],
+                          size: Responsive.isMobile(context) ? 20 : 24,
                         ),
                       ),
-                      if (product.barcode != null)
-                        Text(
-                          'Código: ${product.barcode}',
-                          style: TextStyle(
-                            fontSize: Responsive.getResponsiveFontSize(context, 12),
-                            color: Colors.grey[600],
-                          ),
+                      title: Text(
+                        product.name,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: Responsive.getResponsiveFontSize(context, 16),
                         ),
-                    ],
-                  ),
-                  trailing: Text(
-                    '\$${product.price.toStringAsFixed(2)}',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: Responsive.getResponsiveFontSize(context, 16),
-                      color: Colors.green[700],
+                      ),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Stock: ${product.stock}',
+                            style: TextStyle(
+                              fontSize: Responsive.getResponsiveFontSize(context, 14),
+                              color: product.stock > 0 ? Colors.green[600] : Colors.red[600],
+                            ),
+                          ),
+                          if (product.barcode != null)
+                            Text(
+                              'Código: ${product.barcode}',
+                              style: TextStyle(
+                                fontSize: Responsive.getResponsiveFontSize(context, 12),
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                        ],
+                      ),
+                      trailing: Text(
+                        '\$${product.price.toStringAsFixed(2)}',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: Responsive.getResponsiveFontSize(context, 16),
+                          color: Colors.green[700],
+                        ),
+                      ),
+                      onTap: product.stock > 0 ? () => _selectProduct(product) : null,
                     ),
+                  );
+                },
+              ),
+              if (productVM.hasMore)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  child: ElevatedButton(
+                    onPressed: productVM.isLoadingMore ? null : () => productVM.loadMoreProducts(),
+                    child: productVM.isLoadingMore
+                        ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Text('Cargar más'),
                   ),
-                  onTap: product.stock > 0 ? () => _selectProduct(product) : null,
                 ),
-              );
-            },
+            ],
           );
         },
       ),

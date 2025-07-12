@@ -165,7 +165,6 @@ class AppTheme {
         borderRadius: BorderRadius.circular(16),
         side: BorderSide(color: _primaryColor.withValues(alpha: 0.1), width: 1),
       ),
-      shadowColor: _blackColor.withValues(alpha: 0.15),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
@@ -300,7 +299,6 @@ class AppTheme {
         borderRadius: BorderRadius.circular(16),
         side: BorderSide(color: _primaryColor.withValues(alpha: 0.2), width: 1),
       ),
-      shadowColor: Colors.black.withValues(alpha: 0.3),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,

@@ -7,6 +7,8 @@ import '../viewmodels/category_viewmodel.dart';
 import '../widgets/responsive_form.dart';
 import '../theme/responsive.dart';
 import 'barcode_scanner_screen.dart';
+import '../utils/error_cases.dart';
+import '../viewmodels/dashboard_viewmodel.dart';
 
 class AddProductScreen extends StatefulWidget {
   const AddProductScreen({super.key});
@@ -93,12 +95,9 @@ class _AddProductScreenState extends State<AddProductScreen> {
         );
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error al escanear: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      final productViewModel = context.read<ProductViewModel>();
+      final errorType = productViewModel.errorType ?? AppErrorType.errorAlDescargarDatos;
+      showAppError(context, errorType);
     }
   }
 
@@ -150,6 +149,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
       final success = await context.read<ProductViewModel>().addProduct(product);
       print('✅ [AddProductScreen] Resultado de addProduct: $success');
       if (success && mounted) {
+        // Recargar dashboard inmediatamente
+        context.read<DashboardViewModel>().loadDashboardData();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Producto guardado exitosamente'),
@@ -161,12 +162,9 @@ class _AddProductScreenState extends State<AddProductScreen> {
     } catch (e) {
       print('❌ [AddProductScreen] Error al guardar producto: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        final productViewModel = context.read<ProductViewModel>();
+        final errorType = productViewModel.errorType ?? AppErrorType.desconocido;
+        showAppError(context, errorType);
       }
     }
   }

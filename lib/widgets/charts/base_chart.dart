@@ -23,54 +23,52 @@ class BaseChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppAnimations.combinedAnimation(
-      child: Card(
-        child: Padding(
-          padding: Responsive.getResponsivePadding(context),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    title,
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  if (actions != null) ...actions!,
-                ],
-              ),
-              const SizedBox(height: 16),
-              if (isLoading)
-                const Center(
-                  child: CircularProgressIndicator(),
-                )
-              else if (errorMessage != null)
-                Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        errorMessage!,
-                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                              color: Theme.of(context).colorScheme.error,
-                            ),
-                      ),
-                      if (onRetry != null)
-                        TextButton(
-                          onPressed: onRetry,
-                          child: const Text('Reintentar'),
-                        ),
-                    ],
-                  ),
-                )
-              else
-                SizedBox(
-                  height: Responsive.getResponsiveHeight(context, 30),
-                  child: chart,
+    return Card(
+      child: Padding(
+        padding: Responsive.getResponsivePadding(context),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleLarge,
                 ),
-            ],
-          ),
+                if (actions != null) ...actions!,
+              ],
+            ),
+            const SizedBox(height: 16),
+            if (isLoading)
+              const Center(
+                child: CircularProgressIndicator(),
+              )
+            else if (errorMessage != null)
+              Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      errorMessage!,
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                    ),
+                    if (onRetry != null)
+                      TextButton(
+                        onPressed: onRetry,
+                        child: const Text('Reintentar'),
+                      ),
+                  ],
+                ),
+              )
+            else
+              SizedBox(
+                height: Responsive.getResponsiveHeight(context, 30),
+                child: chart,
+              ),
+          ],
         ),
       ),
     );

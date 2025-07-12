@@ -5,6 +5,7 @@ import '../models/sale_item.dart';
 import '../services/hybrid_data_service.dart';
 import '../services/auth_service.dart';
 import '../utils/error_handler.dart';
+import '../utils/error_cases.dart';
 
 class SaleViewModel extends foundation.ChangeNotifier {
   final HybridDataService _dataService;
@@ -15,9 +16,16 @@ class SaleViewModel extends foundation.ChangeNotifier {
   Map<String, dynamic> _saleStats = {};
   bool _isLoading = false;
   String? _error;
+  AppErrorType? _errorType;
+  AppErrorType? get errorType => _errorType;
   
   // Callback para notificar cambios al dashboard
   VoidCallback? _onSaleAdded;
+
+  int _offset = 0;
+  final int _limit = 100;
+  bool _hasMore = true;
+  bool _isLoadingMore = false;
 
   SaleViewModel(this._dataService, this._authService);
 
@@ -26,6 +34,8 @@ class SaleViewModel extends foundation.ChangeNotifier {
   Map<String, dynamic> get saleStats => _saleStats;
   bool get isLoading => _isLoading;
   String? get error => _error;
+  bool get hasMore => _hasMore;
+  bool get isLoadingMore => _isLoadingMore;
 
   // Método para registrar el callback
   void setOnSaleAddedCallback(VoidCallback callback) {
@@ -45,6 +55,7 @@ class SaleViewModel extends foundation.ChangeNotifier {
       
       _isLoading = true;
       _error = null;
+      _errorType = null;
       print('🔄 [PRODUCCION] Estado después de setear isLoading=true: $_isLoading');
       notifyListeners();
       print('🔄 [PRODUCCION] notifyListeners() llamado');
@@ -65,7 +76,9 @@ class SaleViewModel extends foundation.ChangeNotifier {
     } catch (e, stackTrace) {
       print('❌ [PRODUCCION] Error al cargar ventas: $e');
       print('❌ [PRODUCCION] Stack: $stackTrace');
-      _error = AppError.fromException(e, stackTrace).message;
+      final appError = AppError.fromException(e, stackTrace);
+      _error = appError.message;
+      _errorType = appError.appErrorType;
       _isLoading = false;
       print('🔄 [PRODUCCION] Estado después de error - isLoading: $_isLoading');
       notifyListeners();
@@ -108,12 +121,14 @@ class SaleViewModel extends foundation.ChangeNotifier {
         print('🔄 SaleViewModel: Notificando al dashboard...');
         _onSaleAdded!();
       }
-      
+      _errorType = null;
       return true;
     } catch (e, stackTrace) {
       print('❌ SaleViewModel: Error al agregar venta: $e');
       print('❌ SaleViewModel: Stack trace: $stackTrace');
-      _error = AppError.fromException(e, stackTrace).message;
+      final appError = AppError.fromException(e, stackTrace);
+      _error = appError.message;
+      _errorType = appError.appErrorType;
       print('❌ SaleViewModel: Error procesado: $_error');
       notifyListeners();
       return false;
@@ -127,9 +142,12 @@ class SaleViewModel extends foundation.ChangeNotifier {
       await _dataService.deleteSale(id);
       await loadSales();
       print('✅ SaleViewModel: Venta eliminada exitosamente');
+      _errorType = null;
       return true;
     } catch (e, stackTrace) {
-      _error = AppError.fromException(e, stackTrace).message;
+      final appError = AppError.fromException(e, stackTrace);
+      _error = appError.message;
+      _errorType = appError.appErrorType;
       notifyListeners();
       return false;
     }
@@ -199,5 +217,35 @@ class SaleViewModel extends foundation.ChangeNotifier {
   void clearSelectedSale() {
     _selectedSale = null;
     notifyListeners();
+  }
+
+  Future<void> loadInitialSales() async {
+    _sales = [];
+    _offset = 0;
+    _hasMore = true;
+    await loadMoreSales();
+  }
+
+  Future<void> loadMoreSales() async {
+    if (_isLoadingMore || !_hasMore) return;
+    _isLoadingMore = true;
+    notifyListeners();
+    try {
+      final newSales = await _dataService.getAllSales(offset: _offset, limit: _limit);
+      if (newSales.length < _limit) {
+        _hasMore = false;
+      }
+      // Filtrar duplicados por id
+      final existingIds = _sales.map((s) => s.id).toSet();
+      final uniqueNewSales = newSales.where((s) => !existingIds.contains(s.id)).toList();
+      _sales.addAll(uniqueNewSales);
+      _offset += uniqueNewSales.length;
+      await _loadSaleStats();
+    } catch (e, stackTrace) {
+      _error = AppError.fromException(e, stackTrace).message;
+    } finally {
+      _isLoadingMore = false;
+      notifyListeners();
+    }
   }
 } 

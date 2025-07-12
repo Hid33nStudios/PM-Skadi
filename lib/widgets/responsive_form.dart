@@ -65,12 +65,9 @@ class ResponsiveForm extends StatelessWidget {
 
     // Envolver en card si se especifica
     if (wrapInCard && !Responsive.isMobile(context)) {
-      form = Card(
-        elevation: 4,
-        child: Padding(
-          padding: responsivePadding,
-          child: form,
-        ),
+      form = Container(
+        padding: responsivePadding,
+        child: form,
       );
     }
 

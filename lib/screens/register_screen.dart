@@ -10,6 +10,7 @@ import '../widgets/responsive_form.dart';
 import '../theme/responsive.dart';
 import '../router/app_router.dart';
 import 'login_screen.dart';
+import '../utils/error_cases.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -18,7 +19,7 @@ class RegisterScreen extends StatefulWidget {
   State<RegisterScreen> createState() => _RegisterScreenState();
 }
 
-class _RegisterScreenState extends State<RegisterScreen> with TickerProviderStateMixin {
+class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _usernameController = TextEditingController();
@@ -29,46 +30,13 @@ class _RegisterScreenState extends State<RegisterScreen> with TickerProviderStat
   bool _isLoading = false;
   bool _rememberUser = false;
 
-  late final AnimationController _mainAnimationController;
-  late final AnimationController _glowAnimationController;
-
-  late final Animation<double> _formAnimation;
-  late final Animation<double> _stockcitoAnimation;
-  late final Animation<double> _logoAnimation;
-  late final Animation<double> _ampersandAnimation;
-
   @override
   void initState() {
     super.initState();
-    _mainAnimationController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1500),
-    );
-
-    _glowAnimationController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 2),
-    )..repeat(reverse: true);
-
-    _stockcitoAnimation = _createAnimation(0.0, 0.5);
-    _logoAnimation = _createAnimation(0.2, 0.7);
-    _ampersandAnimation = _createAnimation(0.4, 0.9);
-    _formAnimation = _createAnimation(0.5, 1.0);
-
-    _mainAnimationController.forward();
-  }
-
-  Animation<double> _createAnimation(double begin, double end) {
-    return CurvedAnimation(
-      parent: _mainAnimationController,
-      curve: Interval(begin, end, curve: Curves.easeInOutCubic),
-    );
   }
 
   @override
   void dispose() {
-    _mainAnimationController.dispose();
-    _glowAnimationController.dispose();
     _emailController.dispose();
     _usernameController.dispose();
     _passwordController.dispose();
@@ -117,18 +85,14 @@ class _RegisterScreenState extends State<RegisterScreen> with TickerProviderStat
           context.goToDashboard();
         }
       } else if (mounted) {
-        // ✅ Mostrar error específico del AuthViewModel
-        CustomSnackBar.showError(
-          context: context,
-          message: authViewModel.error ?? 'Error al crear la cuenta',
-        );
+        final errorType = authViewModel.errorType ?? AppErrorType.desconocido;
+        showAppError(context, errorType);
       }
     } catch (e) {
       if (mounted) {
-        CustomSnackBar.showError(
-          context: context,
-          message: e.toString(),
-        );
+        final authViewModel = context.read<AuthViewModel>();
+        final errorType = authViewModel.errorType ?? AppErrorType.desconocido;
+        showAppError(context, errorType);
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -158,71 +122,9 @@ class _RegisterScreenState extends State<RegisterScreen> with TickerProviderStat
               children: [
                 if (!isSmallScreen)
                   Expanded(
-                    child: AnimatedBuilder(
-                      animation: _mainAnimationController,
-                      builder: (context, child) => Container(
-                        color: Colors.black,
-                        child: _DynamicDotBackground(child: child!),
-                      ),
-                      child: Center(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 48.0, vertical: 24.0),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              _AnimatedLoginComponent(
-                                animation: _stockcitoAnimation,
-                                child: Image.asset(
-                                  'assets/images/logs.png',
-                                  height: 200,
-                                ),
-                              ),
-                              const SizedBox(height: 10),
-                              _AnimatedLoginComponent(
-                                animation: _ampersandAnimation,
-                                child: AnimatedBuilder(
-                                  animation: _glowAnimationController,
-                                  builder: (context, child) {
-                                    return Container(
-                                      decoration: BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        boxShadow: [
-                                          for (int i = 1; i <= 2; i++)
-                                            BoxShadow(
-                                              color: theme.primaryColor.withOpacity(
-                                                0.5 * _glowAnimationController.value,
-                                              ),
-                                              spreadRadius: i * 5.0 * _glowAnimationController.value,
-                                              blurRadius: 20.0,
-                                            ),
-                                        ],
-                                      ),
-                                      child: child,
-                                    );
-                                  },
-                                  child: Text(
-                                    '&',
-                                    style: theme.textTheme.displayMedium?.copyWith(
-                                      color: theme.primaryColor.withOpacity(0.9),
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 10),
-                              _AnimatedLoginComponent(
-                                animation: _logoAnimation,
-                                fromOffset: const Offset(0, 0.2),
-                                child: Image.asset(
-                                  'assets/images/logo.png',
-                                  height: 280,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
+                    child: Container(
+                      color: Colors.black,
+                      child: _DynamicDotBackground(child: child!),
                     ),
                   ),
                 Expanded(
@@ -247,11 +149,7 @@ class _RegisterScreenState extends State<RegisterScreen> with TickerProviderStat
                             padding: const EdgeInsets.all(32.0),
                             child: ConstrainedBox(
                               constraints: const BoxConstraints(maxWidth: 400),
-                              child: _AnimatedLoginComponent(
-                                animation: _formAnimation,
-                                fromOffset: const Offset(0.2, 0),
-                                child: _buildDesktopForm(theme),
-                              ),
+                              child: _buildDesktopForm(theme),
                             ),
                           ),
                     ),
@@ -272,7 +170,7 @@ class _RegisterScreenState extends State<RegisterScreen> with TickerProviderStat
         children: [
           // Logo más pequeño
           Image.asset(
-            'assets/images/logo.png',
+            'assets/images/logo.webp',
             height: 120,
           ),
           const SizedBox(height: 16),
@@ -561,7 +459,7 @@ class _RegisterScreenState extends State<RegisterScreen> with TickerProviderStat
       children: [
         if (MediaQuery.of(context).size.width < 800) ...[
           Image.asset(
-            'assets/images/logo.png',
+            'assets/images/logo.webp',
             height: 150,
           ),
           const SizedBox(height: 32),
@@ -796,59 +694,33 @@ class _RegisterScreenState extends State<RegisterScreen> with TickerProviderStat
           ],
         ),
         const SizedBox(height: 20),
-        _AnimatedLoginComponent(
-          animation: _formAnimation,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Colors.yellow, Colors.orange],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.yellow.withOpacity(0.4),
-                  spreadRadius: 2,
-                  blurRadius: 8,
-                ),
-              ],
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Colors.yellow, Colors.orange],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
-            child: Text(
-              'Versión Única',
-              style: GoogleFonts.bebasNeue(
-                color: Colors.black,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.yellow.withOpacity(0.4),
+                spreadRadius: 2,
+                blurRadius: 8,
               ),
+            ],
+          ),
+          child: Text(
+            'Versión Única',
+            style: GoogleFonts.poppins(
+              color: Colors.black,
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ),
       ],
-    );
-  }
-}
-
-class _AnimatedLoginComponent extends StatelessWidget {
-  final Animation<double> animation;
-  final Widget child;
-  final Offset fromOffset;
-
-  const _AnimatedLoginComponent({
-    required this.animation,
-    required this.child,
-    this.fromOffset = const Offset(0, -0.1),
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return FadeTransition(
-      opacity: animation,
-      child: SlideTransition(
-        position: Tween<Offset>(begin: fromOffset, end: Offset.zero).animate(animation),
-        child: child,
-      ),
     );
   }
 }

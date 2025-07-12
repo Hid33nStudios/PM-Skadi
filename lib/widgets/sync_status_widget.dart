@@ -24,13 +24,6 @@ class SyncStatusDot extends StatelessWidget {
             decoration: BoxDecoration(
               color: Color(syncViewModel.getSyncStatusColor()),
               shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: Color(syncViewModel.getSyncStatusColor()).withOpacity(0.3),
-                  blurRadius: 4,
-                  spreadRadius: 1,
-                ),
-              ],
             ),
           ),
         );

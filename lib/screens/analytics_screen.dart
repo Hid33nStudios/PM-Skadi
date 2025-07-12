@@ -8,6 +8,7 @@ import '../viewmodels/category_viewmodel.dart';
 import '../models/category.dart';
 import '../theme/responsive.dart';
 import '../widgets/responsive_form.dart';
+import '../utils/error_cases.dart';
 
 class AnalyticsScreen extends StatefulWidget {
   const AnalyticsScreen({super.key});
@@ -20,11 +21,14 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   @override
   void initState() {
     super.initState();
-    _loadData();
+    // Usar addPostFrameCallback para evitar llamar setState durante build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadData();
+    });
   }
 
   Future<void> _loadData() async {
-    await context.read<ProductViewModel>().loadProducts();
+    await context.read<ProductViewModel>().loadInitialProducts();
     await context.read<SaleViewModel>().loadSales();
     await context.read<CategoryViewModel>().loadCategories();
   }
@@ -65,7 +69,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   Widget _buildResponsiveBody() {
     return Consumer3<ProductViewModel, SaleViewModel, CategoryViewModel>(
       builder: (context, productVM, saleVM, categoryVM, child) {
-        if (productVM.isLoading || saleVM.isLoading || categoryVM.isLoading) {
+        if (productVM.isLoadingMore || saleVM.isLoading || categoryVM.isLoading) {
           return _buildLoadingState();
         }
 
@@ -82,7 +86,14 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         }
 
         if (errorMessages.isNotEmpty) {
-          return _buildErrorState(errorMessages.first);
+          final productErrorType = productVM.errorType;
+          final saleErrorType = saleVM.errorType;
+          final categoryErrorType = categoryVM.errorType;
+          final errorType = productErrorType ?? saleErrorType ?? categoryErrorType ?? AppErrorType.desconocido;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            showAppError(context, errorType);
+          });
+          return const SizedBox.shrink();
         }
 
         // Verificar si hay datos

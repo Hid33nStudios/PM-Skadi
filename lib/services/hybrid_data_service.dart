@@ -72,7 +72,7 @@ class HybridDataService {
   // ===== PRODUCTOS =====
 
   /// Obtener todos los productos
-  Future<List<Product>> getAllProducts() async {
+  Future<List<Product>> getAllProducts({int offset = 0, int limit = 100}) async {
     try {
       if (_isOnline) {
         // Intentar obtener de Firebase
@@ -81,14 +81,33 @@ class HybridDataService {
         for (final product in products) {
           await _localDatabase.insertProduct(product);
         }
-        return products;
+        // Devolver lote paginado
+        final start = products.length - offset - limit;
+        final end = products.length - offset;
+        if (start < 0) {
+          return products.sublist(0, end);
+        } else {
+          return products.sublist(start, end);
+        }
       } else {
-        // Usar datos locales
-        return await _localDatabase.getAllProducts();
+        final products = await _localDatabase.getAllProducts();
+        final start = products.length - offset - limit;
+        final end = products.length - offset;
+        if (start < 0) {
+          return products.sublist(0, end);
+        } else {
+          return products.sublist(start, end);
+        }
       }
     } catch (e) {
-      // Fallback a datos locales
-      return await _localDatabase.getAllProducts();
+      final products = await _localDatabase.getAllProducts();
+      final start = products.length - offset - limit;
+      final end = products.length - offset;
+      if (start < 0) {
+        return products.sublist(0, end);
+      } else {
+        return products.sublist(start, end);
+      }
     }
   }
 
@@ -224,7 +243,7 @@ class HybridDataService {
   // ===== CATEGORÍAS =====
 
   /// Obtener todas las categorías
-  Future<List<Category>> getAllCategories() async {
+  Future<List<Category>> getAllCategories({int offset = 0, int limit = 100}) async {
     try {
       print('🔄 HybridDataService: Obteniendo categorías...');
       print('📊 HybridDataService: Estado online: $_isOnline');
@@ -239,19 +258,37 @@ class HybridDataService {
           await _localDatabase.insertCategory(category);
         }
         print('✅ HybridDataService: Categorías guardadas en local');
-        return categories;
+        final start = categories.length - offset - limit;
+        final end = categories.length - offset;
+        if (start < 0) {
+          return categories.sublist(0, end);
+        } else {
+          return categories.sublist(start, end);
+        }
       } else {
         print('🔄 HybridDataService: Modo offline, obteniendo de local...');
         final categories = await _localDatabase.getAllCategories();
         print('📊 HybridDataService: Categorías obtenidas de local: ${categories.length}');
-        return categories;
+        final start = categories.length - offset - limit;
+        final end = categories.length - offset;
+        if (start < 0) {
+          return categories.sublist(0, end);
+        } else {
+          return categories.sublist(start, end);
+        }
       }
     } catch (e) {
       print('❌ HybridDataService: Error obteniendo categorías: $e');
       print('🔄 HybridDataService: Fallback a datos locales...');
       final categories = await _localDatabase.getAllCategories();
       print('📊 HybridDataService: Categorías de fallback: ${categories.length}');
-      return categories;
+      final start = categories.length - offset - limit;
+      final end = categories.length - offset;
+      if (start < 0) {
+        return categories.sublist(0, end);
+      } else {
+        return categories.sublist(start, end);
+      }
     }
   }
 
@@ -303,7 +340,7 @@ class HybridDataService {
   // ===== VENTAS =====
 
   /// Obtener todas las ventas
-  Future<List<Sale>> getAllSales() async {
+  Future<List<Sale>> getAllSales({int offset = 0, int limit = 100}) async {
     try {
       if (_isOnline) {
         final sales = await _firestoreService.getSales();
@@ -311,12 +348,32 @@ class HybridDataService {
         for (final sale in sales) {
           await _localDatabase.insertSale(sale);
         }
-        return sales;
+        final start = sales.length - offset - limit;
+        final end = sales.length - offset;
+        if (start < 0) {
+          return sales.sublist(0, end);
+        } else {
+          return sales.sublist(start, end);
+        }
       } else {
-        return await _localDatabase.getAllSales();
+        final sales = await _localDatabase.getAllSales();
+        final start = sales.length - offset - limit;
+        final end = sales.length - offset;
+        if (start < 0) {
+          return sales.sublist(0, end);
+        } else {
+          return sales.sublist(start, end);
+        }
       }
     } catch (e) {
-      return await _localDatabase.getAllSales();
+      final sales = await _localDatabase.getAllSales();
+      final start = sales.length - offset - limit;
+      final end = sales.length - offset;
+      if (start < 0) {
+        return sales.sublist(0, end);
+      } else {
+        return sales.sublist(start, end);
+      }
     }
   }
 
@@ -399,7 +456,7 @@ class HybridDataService {
   // ===== MOVIMIENTOS =====
 
   /// Obtener todos los movimientos
-  Future<List<Movement>> getAllMovements() async {
+  Future<List<Movement>> getAllMovements({int offset = 0, int limit = 100}) async {
     try {
       if (_isOnline) {
         final movements = await _firestoreService.getMovements();
@@ -407,12 +464,32 @@ class HybridDataService {
         for (final movement in movements) {
           await _localDatabase.insertMovement(movement);
         }
-        return movements;
+        final start = movements.length - offset - limit;
+        final end = movements.length - offset;
+        if (start < 0) {
+          return movements.sublist(0, end);
+        } else {
+          return movements.sublist(start, end);
+        }
       } else {
-        return await _localDatabase.getAllMovements();
+        final movements = await _localDatabase.getAllMovements();
+        final start = movements.length - offset - limit;
+        final end = movements.length - offset;
+        if (start < 0) {
+          return movements.sublist(0, end);
+        } else {
+          return movements.sublist(start, end);
+        }
       }
     } catch (e) {
-      return await _localDatabase.getAllMovements();
+      final movements = await _localDatabase.getAllMovements();
+      final start = movements.length - offset - limit;
+      final end = movements.length - offset;
+      if (start < 0) {
+        return movements.sublist(0, end);
+      } else {
+        return movements.sublist(start, end);
+      }
     }
   }
 

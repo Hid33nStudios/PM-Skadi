@@ -3,6 +3,8 @@ import '../models/category.dart';
 import '../services/hybrid_data_service.dart';
 import '../services/auth_service.dart';
 import '../utils/error_handler.dart';
+import '../utils/error_cases.dart';
+import 'package:uuid/uuid.dart';
 
 class CategoryViewModel extends foundation.ChangeNotifier {
   final HybridDataService _dataService;
@@ -13,14 +15,22 @@ class CategoryViewModel extends foundation.ChangeNotifier {
   Map<String, dynamic> _categoryStats = {};
   bool _isLoading = false;
   String? _error;
+  AppErrorType? _errorType;
+  AppErrorType? get errorType => _errorType;
+  int _offset = 0;
+  final int _limit = 100;
+  bool _hasMore = true;
+  bool _isLoadingMore = false;
 
   CategoryViewModel(this._dataService, this._authService);
 
-  List<Category> get categories => _categories;
+  List<Category> get categories => _categories.where((c) => c.id.isNotEmpty).toList();
   Category? get selectedCategory => _selectedCategory;
   Map<String, dynamic> get categoryStats => _categoryStats;
   bool get isLoading => _isLoading;
   String? get error => _error;
+  bool get hasMore => _hasMore;
+  bool get isLoadingMore => _isLoadingMore;
 
   Future<void> loadCategories() async {
     if (_isLoading) {
@@ -31,6 +41,7 @@ class CategoryViewModel extends foundation.ChangeNotifier {
     try {
       _isLoading = true;
       _error = null;
+      _errorType = null;
       notifyListeners();
 
       print('🔄 Cargando categorías');
@@ -51,7 +62,9 @@ class CategoryViewModel extends foundation.ChangeNotifier {
       await _loadCategoryStats();
     } catch (e, stackTrace) {
       print('❌ CategoryViewModel: Error cargando categorías: $e');
-      _error = AppError.fromException(e, stackTrace).message;
+      final appError = AppError.fromException(e, stackTrace);
+      _error = appError.message;
+      _errorType = appError.appErrorType;
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -81,21 +94,24 @@ class CategoryViewModel extends foundation.ChangeNotifier {
     try {
       print('🔄 CategoryViewModel: Agregando categoría: ${category.name}');
       print('📝 CategoryViewModel: Datos de la categoría: ${category.toMap()}');
-      
-      await _dataService.createCategory(category);
+      // Generar un UUID si el id está vacío
+      final String newId = category.id.isEmpty ? const Uuid().v4() : category.id;
+      final newCategory = category.copyWith(id: newId);
+      await _dataService.createCategory(newCategory);
       print('✅ CategoryViewModel: Categoría creada en servicio de datos');
-      
       // Recargar categorías de forma asíncrona para evitar problemas de build
       Future.microtask(() async {
         await loadCategories();
         print('✅ CategoryViewModel: Categorías recargadas');
         print('📊 CategoryViewModel: Total de categorías después de agregar: ${_categories.length}');
       });
-      
+      _errorType = null;
       return true;
     } catch (e, stackTrace) {
       print('❌ CategoryViewModel: Error al agregar categoría: $e');
-      _error = AppError.fromException(e, stackTrace).message;
+      final appError = AppError.fromException(e, stackTrace);
+      _error = appError.message;
+      _errorType = appError.appErrorType;
       notifyListeners();
       return false;
     }
@@ -113,9 +129,12 @@ class CategoryViewModel extends foundation.ChangeNotifier {
         print('✅ CategoryViewModel: Categoría actualizada exitosamente');
       });
       
+      _errorType = null;
       return true;
     } catch (e, stackTrace) {
-      _error = AppError.fromException(e, stackTrace).message;
+      final appError = AppError.fromException(e, stackTrace);
+      _error = appError.message;
+      _errorType = appError.appErrorType;
       notifyListeners();
       return false;
     }
@@ -133,9 +152,12 @@ class CategoryViewModel extends foundation.ChangeNotifier {
         print('✅ CategoryViewModel: Categoría eliminada exitosamente');
       });
       
+      _errorType = null;
       return true;
     } catch (e, stackTrace) {
-      _error = AppError.fromException(e, stackTrace).message;
+      final appError = AppError.fromException(e, stackTrace);
+      _error = appError.message;
+      _errorType = appError.appErrorType;
       notifyListeners();
       return false;
     }
@@ -172,11 +194,42 @@ class CategoryViewModel extends foundation.ChangeNotifier {
 
   void clearError() {
     _error = null;
+    _errorType = null;
     notifyListeners();
   }
 
   void clearSelectedCategory() {
     _selectedCategory = null;
     notifyListeners();
+  }
+
+  Future<void> loadInitialCategories() async {
+    _categories = [];
+    _offset = 0;
+    _hasMore = true;
+    await loadMoreCategories();
+  }
+
+  Future<void> loadMoreCategories() async {
+    if (_isLoadingMore || !_hasMore) return;
+    _isLoadingMore = true;
+    notifyListeners();
+    try {
+      final newCategories = await _dataService.getAllCategories(offset: _offset, limit: _limit);
+      if (newCategories.length < _limit) {
+        _hasMore = false;
+      }
+      // Filtrar duplicados por id
+      final existingIds = _categories.map((c) => c.id).toSet();
+      final uniqueNewCategories = newCategories.where((c) => !existingIds.contains(c.id)).toList();
+      _categories.addAll(uniqueNewCategories);
+      _offset += uniqueNewCategories.length;
+      await _loadCategoryStats();
+    } catch (e, stackTrace) {
+      _error = AppError.fromException(e, stackTrace).message;
+    } finally {
+      _isLoadingMore = false;
+      notifyListeners();
+    }
   }
 } 
