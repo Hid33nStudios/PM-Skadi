@@ -28,9 +28,17 @@ import 'screens/add_sale_screen.dart';
 import 'screens/add_product_screen.dart';
 import 'screens/migration_screen.dart';
 import 'screens/barcode_scanner_screen.dart';
+import 'screens/category_management_screen.dart';
+import 'screens/movement_history_screen.dart';
+import 'screens/sales_history_screen.dart';
+import 'screens/product_list_screen.dart';
+import 'screens/edit_product_screen.dart';
+import 'screens/product_detail_screen.dart';
+import 'models/product.dart';
 import 'theme/app_theme.dart';
 import 'theme/theme_provider.dart';
 import 'widgets/app_initializer.dart';
+import 'router/app_router.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
 void main() async {
@@ -73,20 +81,22 @@ class MyApp extends StatelessWidget {
         Provider<AuthService>(
           create: (_) => AuthService(),
         ),
-        Provider<FirestoreService>(
-          create: (context) => FirestoreService(context.read<AuthService>()),
+        ProxyProvider<AuthService, FirestoreService>(
+          create: (_) => FirestoreService(AuthService()),
+          update: (context, authService, previous) => FirestoreService(authService),
         ),
-        
-        // Servicio de base de datos local con Hive
         Provider<HiveDatabaseService>(
           create: (_) => HiveDatabaseService(),
         ),
-        
-        // Servicios híbridos
-        Provider<HybridDataService>(
-          create: (context) => HybridDataService(
-            firestoreService: context.read<FirestoreService>(),
-            localDatabase: context.read<HiveDatabaseService>(),
+        ProxyProvider2<FirestoreService, HiveDatabaseService, HybridDataService>(
+          create: (_) => HybridDataService(
+            firestoreService: FirestoreService(AuthService()),
+            localDatabase: HiveDatabaseService(),
+            auth: FirebaseAuth.instance,
+          ),
+          update: (context, firestoreService, hiveDatabaseService, previous) => HybridDataService(
+            firestoreService: firestoreService,
+            localDatabase: hiveDatabaseService,
             auth: FirebaseAuth.instance,
           ),
         ),
@@ -104,67 +114,89 @@ class MyApp extends StatelessWidget {
             context.read<HybridDataService>(),
           ),
         ),
-        
-        // Servicio de escaneo de códigos de barras
         Provider<BarcodeScannerService>(
           create: (_) => BarcodeScannerService(),
         ),
-        
-        // Theme Provider
         ChangeNotifierProvider<ThemeProvider>(
           create: (_) => ThemeProvider(),
         ),
+        // ViewModels con servicios híbridos y AuthService
+        ChangeNotifierProxyProvider2<HybridDataService, AuthService, ProductViewModel>(
+          create: (_) => ProductViewModel(HybridDataService(
+            firestoreService: FirestoreService(AuthService()),
+            localDatabase: HiveDatabaseService(),
+            auth: FirebaseAuth.instance,
+          ), AuthService()),
+          update: (context, hybridService, authService, previous) => ProductViewModel(
+            hybridService,
+            authService,
+          ),
+        ),
+        ChangeNotifierProxyProvider2<HybridDataService, AuthService, CategoryViewModel>(
+          create: (_) => CategoryViewModel(HybridDataService(
+            firestoreService: FirestoreService(AuthService()),
+            localDatabase: HiveDatabaseService(),
+            auth: FirebaseAuth.instance,
+          ), AuthService()),
+          update: (context, hybridService, authService, previous) => CategoryViewModel(
+            hybridService,
+            authService,
+          ),
+        ),
+        ChangeNotifierProxyProvider2<HybridDataService, AuthService, MovementViewModel>(
+          create: (_) => MovementViewModel(HybridDataService(
+            firestoreService: FirestoreService(AuthService()),
+            localDatabase: HiveDatabaseService(),
+            auth: FirebaseAuth.instance,
+          ), AuthService()),
+          update: (context, hybridService, authService, previous) => MovementViewModel(
+            hybridService,
+            authService,
+          ),
+        ),
+        ChangeNotifierProxyProvider2<HybridDataService, AuthService, SaleViewModel>(
+          create: (_) => SaleViewModel(HybridDataService(
+            firestoreService: FirestoreService(AuthService()),
+            localDatabase: HiveDatabaseService(),
+            auth: FirebaseAuth.instance,
+          ), AuthService()),
+          update: (context, hybridService, authService, previous) => SaleViewModel(
+            hybridService,
+            authService,
+          ),
+        ),
         
-        // ViewModels con servicios híbridos
-        ChangeNotifierProxyProvider<HybridDataService, ProductViewModel>(
-          create: (context) => ProductViewModel(
-            context.read<HybridDataService>(),
+        // AuthViewModel debe ir ANTES del DashboardViewModel
+        ChangeNotifierProxyProvider<AuthService, AuthViewModel>(
+          create: (context) => AuthViewModel(
             context.read<AuthService>(),
+            context.read<FirestoreService>(),
           ),
-          update: (context, hybridService, previous) => ProductViewModel(
-            hybridService,
-            context.read<AuthService>(),
-          ),
-        ),
-        ChangeNotifierProxyProvider<HybridDataService, CategoryViewModel>(
-          create: (context) => CategoryViewModel(
-            context.read<HybridDataService>(),
-            context.read<AuthService>(),
-          ),
-          update: (context, hybridService, previous) => CategoryViewModel(
-            hybridService,
-            context.read<AuthService>(),
+          update: (context, authService, previous) => AuthViewModel(
+            authService,
+            context.read<FirestoreService>(),
           ),
         ),
-        ChangeNotifierProxyProvider<HybridDataService, MovementViewModel>(
-          create: (context) => MovementViewModel(
-            context.read<HybridDataService>(),
-            context.read<AuthService>(),
-          ),
-          update: (context, hybridService, previous) => MovementViewModel(
-            hybridService,
-            context.read<AuthService>(),
-          ),
-        ),
-        ChangeNotifierProxyProvider<HybridDataService, SaleViewModel>(
-          create: (context) => SaleViewModel(
-            context.read<HybridDataService>(),
-            context.read<AuthService>(),
-          ),
-          update: (context, hybridService, previous) => SaleViewModel(
-            hybridService,
-            context.read<AuthService>(),
-          ),
-        ),
-        ChangeNotifierProxyProvider<HybridDataService, DashboardViewModel>(
-          create: (context) => DashboardViewModel(
-            context.read<HybridDataService>(),
-            context.read<AuthService>(),
-          ),
-          update: (context, hybridService, previous) => DashboardViewModel(
-            hybridService,
-            context.read<AuthService>(),
-          ),
+        
+        ChangeNotifierProxyProvider3<HybridDataService, AuthService, AuthViewModel, DashboardViewModel>(
+          create: (_) => DashboardViewModel(HybridDataService(
+            firestoreService: FirestoreService(AuthService()),
+            localDatabase: HiveDatabaseService(),
+            auth: FirebaseAuth.instance,
+          ), AuthService()),
+          update: (context, hybridService, authService, authViewModel, previous) {
+            final currentUser = authViewModel.currentUser;
+            final dashboardVM = previous ?? DashboardViewModel(hybridService, authService);
+            dashboardVM.lastUserId = currentUser?.uid;
+            // Actualizar servicios si cambiaron
+            dashboardVM.dataService = hybridService;
+            dashboardVM.authService = authService;
+            // Si el usuario cambió, limpiar datos
+            if (previous?.lastUserId != currentUser?.uid) {
+              dashboardVM.clearData();
+            }
+            return dashboardVM;
+          },
         ),
         
         // ViewModels de sincronización
@@ -189,7 +221,7 @@ class MyApp extends StatelessWidget {
           ),
         ),
         
-        // ViewModels de tema y autenticación
+        // ViewModels de tema
         ChangeNotifierProxyProvider<ThemeProvider, ThemeViewModel>(
           create: (context) => ThemeViewModel(
             context.read<ThemeProvider>(),
@@ -198,59 +230,17 @@ class MyApp extends StatelessWidget {
             themeProvider,
           ),
         ),
-        ChangeNotifierProxyProvider<AuthService, AuthViewModel>(
-          create: (context) => AuthViewModel(
-            context.read<AuthService>(),
-            context.read<FirestoreService>(),
-          ),
-          update: (context, authService, previous) => AuthViewModel(
-            authService,
-            context.read<FirestoreService>(),
-          ),
-        ),
       ],
       child: AppInitializer(
-        child: Consumer<ThemeViewModel>(
-          builder: (context, themeViewModel, _) {
-            return MaterialApp(
+        child: Consumer2<ThemeViewModel, AuthViewModel>(
+          builder: (context, themeViewModel, authViewModel, _) {
+            return MaterialApp.router(
               title: 'Stockcito - Planeta Motos',
               debugShowCheckedModeBanner: false,
               theme: AppTheme.lightTheme,
               darkTheme: AppTheme.darkTheme,
               themeMode: themeViewModel.isDarkMode ? ThemeMode.dark : ThemeMode.light,
-              initialRoute: '/login',
-              onGenerateRoute: (settings) {
-                Widget page;
-                switch (settings.name) {
-                  case '/login':
-                    page = const LoginScreen();
-                    break;
-                  case '/register':
-                    page = const RegisterScreen();
-                    break;
-                  case '/home':
-                    page = HomeScreen();
-                    break;
-                  case '/add-sale':
-                    page = const AddSaleScreen();
-                    break;
-                  case '/add-product':
-                    page = const AddProductScreen();
-                    break;
-                  case '/migration':
-                    page = const MigrationScreen();
-                    break;
-                  case '/barcode-scanner':
-                    page = const BarcodeScannerScreen();
-                    break;
-                  default:
-                    page = const LoginScreen();
-                }
-                return MaterialPageRoute(
-                  builder: (context) => page,
-                  settings: settings,
-                );
-              },
+              routerConfig: AppRouter.createRouter(authViewModel),
             );
           },
         ),
@@ -258,3 +248,5 @@ class MyApp extends StatelessWidget {
     );
   }
 }
+
+

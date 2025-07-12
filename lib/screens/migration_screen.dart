@@ -5,6 +5,7 @@ import '../widgets/custom_card.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/loading_overlay.dart';
 import '../theme/app_theme.dart';
+import '../utils/error_cases.dart';
 
 class MigrationScreen extends StatefulWidget {
   const MigrationScreen({Key? key}) : super(key: key);
@@ -34,6 +35,13 @@ class _MigrationScreenState extends State<MigrationScreen> {
       ),
       body: Consumer<MigrationViewModel>(
         builder: (context, viewModel, child) {
+          if (viewModel.error != null) {
+            final errorType = viewModel.errorType ?? AppErrorType.desconocido;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              showAppError(context, errorType);
+            });
+            return const SizedBox.shrink();
+          }
           return LoadingOverlay(
             isLoading: viewModel.isMigrating || viewModel.isCheckingData,
             child: SingleChildScrollView(

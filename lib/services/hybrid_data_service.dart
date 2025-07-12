@@ -72,7 +72,7 @@ class HybridDataService {
   // ===== PRODUCTOS =====
 
   /// Obtener todos los productos
-  Future<List<Product>> getAllProducts() async {
+  Future<List<Product>> getAllProducts({int offset = 0, int limit = 100}) async {
     try {
       if (_isOnline) {
         // Intentar obtener de Firebase
@@ -81,14 +81,33 @@ class HybridDataService {
         for (final product in products) {
           await _localDatabase.insertProduct(product);
         }
-        return products;
+        // Devolver lote paginado
+        final start = products.length - offset - limit;
+        final end = products.length - offset;
+        if (start < 0) {
+          return products.sublist(0, end);
+        } else {
+          return products.sublist(start, end);
+        }
       } else {
-        // Usar datos locales
-        return await _localDatabase.getAllProducts();
+        final products = await _localDatabase.getAllProducts();
+        final start = products.length - offset - limit;
+        final end = products.length - offset;
+        if (start < 0) {
+          return products.sublist(0, end);
+        } else {
+          return products.sublist(start, end);
+        }
       }
     } catch (e) {
-      // Fallback a datos locales
-      return await _localDatabase.getAllProducts();
+      final products = await _localDatabase.getAllProducts();
+      final start = products.length - offset - limit;
+      final end = products.length - offset;
+      if (start < 0) {
+        return products.sublist(0, end);
+      } else {
+        return products.sublist(start, end);
+      }
     }
   }
 
@@ -224,20 +243,52 @@ class HybridDataService {
   // ===== CATEGORÍAS =====
 
   /// Obtener todas las categorías
-  Future<List<Category>> getAllCategories() async {
+  Future<List<Category>> getAllCategories({int offset = 0, int limit = 100}) async {
     try {
+      print('🔄 HybridDataService: Obteniendo categorías...');
+      print('📊 HybridDataService: Estado online: $_isOnline');
+      
       if (_isOnline) {
+        print('🔄 HybridDataService: Intentando obtener de Firebase...');
         final categories = await _firestoreService.getCategories();
+        print('📊 HybridDataService: Categorías obtenidas de Firebase: ${categories.length}');
+        
         // Guardar en local
         for (final category in categories) {
           await _localDatabase.insertCategory(category);
         }
-        return categories;
+        print('✅ HybridDataService: Categorías guardadas en local');
+        final start = categories.length - offset - limit;
+        final end = categories.length - offset;
+        if (start < 0) {
+          return categories.sublist(0, end);
+        } else {
+          return categories.sublist(start, end);
+        }
       } else {
-        return await _localDatabase.getAllCategories();
+        print('🔄 HybridDataService: Modo offline, obteniendo de local...');
+        final categories = await _localDatabase.getAllCategories();
+        print('📊 HybridDataService: Categorías obtenidas de local: ${categories.length}');
+        final start = categories.length - offset - limit;
+        final end = categories.length - offset;
+        if (start < 0) {
+          return categories.sublist(0, end);
+        } else {
+          return categories.sublist(start, end);
+        }
       }
     } catch (e) {
-      return await _localDatabase.getAllCategories();
+      print('❌ HybridDataService: Error obteniendo categorías: $e');
+      print('🔄 HybridDataService: Fallback a datos locales...');
+      final categories = await _localDatabase.getAllCategories();
+      print('📊 HybridDataService: Categorías de fallback: ${categories.length}');
+      final start = categories.length - offset - limit;
+      final end = categories.length - offset;
+      if (start < 0) {
+        return categories.sublist(0, end);
+      } else {
+        return categories.sublist(start, end);
+      }
     }
   }
 
@@ -289,7 +340,7 @@ class HybridDataService {
   // ===== VENTAS =====
 
   /// Obtener todas las ventas
-  Future<List<Sale>> getAllSales() async {
+  Future<List<Sale>> getAllSales({int offset = 0, int limit = 100}) async {
     try {
       if (_isOnline) {
         final sales = await _firestoreService.getSales();
@@ -297,27 +348,93 @@ class HybridDataService {
         for (final sale in sales) {
           await _localDatabase.insertSale(sale);
         }
-        return sales;
+        final start = sales.length - offset - limit;
+        final end = sales.length - offset;
+        if (start < 0) {
+          return sales.sublist(0, end);
+        } else {
+          return sales.sublist(start, end);
+        }
       } else {
-        return await _localDatabase.getAllSales();
+        final sales = await _localDatabase.getAllSales();
+        final start = sales.length - offset - limit;
+        final end = sales.length - offset;
+        if (start < 0) {
+          return sales.sublist(0, end);
+        } else {
+          return sales.sublist(start, end);
+        }
       }
     } catch (e) {
-      return await _localDatabase.getAllSales();
+      final sales = await _localDatabase.getAllSales();
+      final start = sales.length - offset - limit;
+      final end = sales.length - offset;
+      if (start < 0) {
+        return sales.sublist(0, end);
+      } else {
+        return sales.sublist(start, end);
+      }
     }
   }
 
   /// Crear venta
   Future<void> createSale(Sale sale) async {
-    await _localDatabase.insertSale(sale);
-    
-    if (_isOnline) {
-      try {
-        await _firestoreService.addSale(sale);
-      } catch (e) {
-        _addPendingOperation('createSale', sale.toMap());
+    try {
+      print('🔄 HybridDataService: Iniciando createSale...');
+      print('📝 HybridDataService: Datos de la venta: ${sale.toMap()}');
+      
+      // Obtener el producto para verificar stock disponible
+      final product = await getProductById(sale.productId);
+      if (product == null) {
+        throw Exception('Producto no encontrado: ${sale.productId}');
       }
-    } else {
-      _addPendingOperation('createSale', sale.toMap());
+      
+      // Verificar que hay suficiente stock
+      if (product.stock < sale.quantity) {
+        throw Exception('Stock insuficiente. Disponible: ${product.stock}, Solicitado: ${sale.quantity}');
+      }
+      
+      // Calcular nuevo stock
+      final newStock = product.stock - sale.quantity;
+      print('📊 HybridDataService: Stock actual: ${product.stock}, Cantidad vendida: ${sale.quantity}, Nuevo stock: $newStock');
+      
+      // Actualizar el producto con el nuevo stock
+      final updatedProduct = product.copyWith(
+        stock: newStock,
+        updatedAt: DateTime.now(),
+      );
+      
+      print('🔄 HybridDataService: Actualizando stock del producto...');
+      await updateProduct(updatedProduct);
+      print('✅ HybridDataService: Stock actualizado exitosamente');
+      
+      print('🔄 HybridDataService: Guardando en base de datos local...');
+      await _localDatabase.insertSale(sale);
+      print('✅ HybridDataService: Venta guardada en local');
+      
+      print('📊 HybridDataService: Estado online: $_isOnline');
+      
+      if (_isOnline) {
+        try {
+          print('🔄 HybridDataService: Intentando guardar en Firebase...');
+          await _firestoreService.addSale(sale);
+          print('✅ HybridDataService: Venta guardada en Firebase');
+        } catch (e) {
+          print('❌ HybridDataService: Error al guardar en Firebase: $e');
+          print('🔄 HybridDataService: Agregando a operaciones pendientes...');
+          _addPendingOperation('createSale', sale.toMap());
+          print('✅ HybridDataService: Operación agregada a pendientes');
+        }
+      } else {
+        print('🔄 HybridDataService: Modo offline, agregando a operaciones pendientes...');
+        _addPendingOperation('createSale', sale.toMap());
+        print('✅ HybridDataService: Operación agregada a pendientes');
+      }
+      
+      print('✅ HybridDataService: createSale completado exitosamente');
+    } catch (e) {
+      print('❌ HybridDataService: Error en createSale: $e');
+      rethrow;
     }
   }
 
@@ -339,7 +456,7 @@ class HybridDataService {
   // ===== MOVIMIENTOS =====
 
   /// Obtener todos los movimientos
-  Future<List<Movement>> getAllMovements() async {
+  Future<List<Movement>> getAllMovements({int offset = 0, int limit = 100}) async {
     try {
       if (_isOnline) {
         final movements = await _firestoreService.getMovements();
@@ -347,12 +464,32 @@ class HybridDataService {
         for (final movement in movements) {
           await _localDatabase.insertMovement(movement);
         }
-        return movements;
+        final start = movements.length - offset - limit;
+        final end = movements.length - offset;
+        if (start < 0) {
+          return movements.sublist(0, end);
+        } else {
+          return movements.sublist(start, end);
+        }
       } else {
-        return await _localDatabase.getAllMovements();
+        final movements = await _localDatabase.getAllMovements();
+        final start = movements.length - offset - limit;
+        final end = movements.length - offset;
+        if (start < 0) {
+          return movements.sublist(0, end);
+        } else {
+          return movements.sublist(start, end);
+        }
       }
     } catch (e) {
-      return await _localDatabase.getAllMovements();
+      final movements = await _localDatabase.getAllMovements();
+      final start = movements.length - offset - limit;
+      final end = movements.length - offset;
+      if (start < 0) {
+        return movements.sublist(0, end);
+      } else {
+        return movements.sublist(start, end);
+      }
     }
   }
 

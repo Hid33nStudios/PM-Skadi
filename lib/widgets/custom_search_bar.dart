@@ -115,7 +115,6 @@ class _CustomSearchBarState extends State<CustomSearchBar> {
       children: [
         Card(
           color: widget.backgroundColor ?? theme.cardColor,
-          elevation: widget.elevation ?? 2,
           shape: widget.shape ??
               RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),

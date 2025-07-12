@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
+import '../theme/responsive.dart';
 
 /// Widget base para crear efectos de skeleton loading
 class SkeletonWidget extends StatefulWidget {
@@ -53,20 +54,6 @@ class _SkeletonWidgetState extends State<SkeletonWidget>
           height: widget.height,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(widget.borderRadius),
-            gradient: LinearGradient(
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-              colors: [
-                widget.color ?? Colors.grey[300]!,
-                widget.color?.withOpacity(0.5) ?? Colors.grey[100]!,
-                widget.color ?? Colors.grey[300]!,
-              ],
-              stops: [
-                0.0,
-                0.5 + (_animation.value * 0.1),
-                1.0,
-              ],
-            ),
           ),
         );
       },
@@ -363,6 +350,196 @@ class FormSkeleton extends StatelessWidget {
                 const SizedBox(width: 16),
                 const Expanded(child: SkeletonWidget(height: 48, borderRadius: 8)),
               ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class SkeletonLoading extends StatelessWidget {
+  final double? width;
+  final double? height;
+  final double borderRadius;
+  final EdgeInsets? margin;
+
+  const SkeletonLoading({
+    super.key,
+    this.width,
+    this.height,
+    this.borderRadius = 8.0,
+    this.margin,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: height,
+      margin: margin,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(borderRadius),
+      ),
+    );
+  }
+}
+
+class SkeletonCard extends StatelessWidget {
+  final double? width;
+  final double? height;
+  final EdgeInsets? padding;
+  final EdgeInsets? margin;
+
+  const SkeletonCard({
+    super.key,
+    this.width,
+    this.height,
+    this.padding,
+    this.margin,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: height,
+      margin: margin,
+      padding: padding ?? const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header skeleton
+          Row(
+            children: [
+              SkeletonLoading(
+                width: 24,
+                height: 24,
+                borderRadius: 6,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: SkeletonLoading(
+                  height: 20,
+                  borderRadius: 4,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          // Content skeleton
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: List.generate(
+                3,
+                (index) => Padding(
+                  padding: EdgeInsets.only(bottom: index == 2 ? 0 : 12),
+                  child: SkeletonLoading(
+                    height: 16,
+                    borderRadius: 4,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class SkeletonGrid extends StatelessWidget {
+  final int crossAxisCount;
+  final double childAspectRatio;
+  final double spacing;
+  final int itemCount;
+
+  const SkeletonGrid({
+    super.key,
+    this.crossAxisCount = 3,
+    this.childAspectRatio = 1.2,
+    this.spacing = 24,
+    this.itemCount = 6,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: crossAxisCount,
+        childAspectRatio: childAspectRatio,
+        mainAxisSpacing: spacing,
+        crossAxisSpacing: spacing,
+      ),
+      itemCount: itemCount,
+      itemBuilder: (context, index) => const SkeletonCard(),
+    );
+  }
+}
+
+class SkeletonList extends StatelessWidget {
+  final int itemCount;
+  final double itemHeight;
+  final EdgeInsets? padding;
+
+  const SkeletonList({
+    super.key,
+    this.itemCount = 5,
+    this.itemHeight = 60,
+    this.padding,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.separated(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      padding: padding,
+      itemCount: itemCount,
+      separatorBuilder: (context, index) => const SizedBox(height: 12),
+      itemBuilder: (context, index) => Container(
+        height: itemHeight,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            SkeletonLoading(
+              width: 40,
+              height: 40,
+              borderRadius: 8,
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  SkeletonLoading(
+                    height: 16,
+                    borderRadius: 4,
+                  ),
+                  const SizedBox(height: 8),
+                  SkeletonLoading(
+                    height: 12,
+                    borderRadius: 4,
+                  ),
+                ],
+              ),
+            ),
+            SkeletonLoading(
+              width: 60,
+              height: 20,
+              borderRadius: 10,
             ),
           ],
         ),

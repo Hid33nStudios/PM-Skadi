@@ -5,6 +5,7 @@ import '../viewmodels/sale_viewmodel.dart';
 import '../viewmodels/product_viewmodel.dart';
 import '../services/auth_service.dart';
 import '../utils/error_handler.dart';
+import '../utils/error_cases.dart';
 
 class NewSaleScreen extends StatefulWidget {
   const NewSaleScreen({super.key});
@@ -48,7 +49,7 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
   }
 
   Future<void> _loadData() async {
-    await context.read<ProductViewModel>().loadProducts();
+    await context.read<ProductViewModel>().loadInitialProducts();
   }
 
   void _selectProduct(String productId, String productName, double price) {
@@ -71,7 +72,7 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
   Future<void> _saveSale() async {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedProductId == null) {
-      context.showError('Seleccione un producto');
+      showAppError(context, AppErrorType.productoNoEncontrado);
       return;
     }
 
@@ -82,7 +83,7 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
     try {
       final userId = context.read<AuthService>().currentUser?.uid;
       if (userId == null) {
-        context.showError('No hay usuario autenticado');
+        showAppError(context, AppErrorType.autenticacion);
         return;
       }
 
@@ -112,7 +113,9 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
       }
     } catch (e) {
       if (mounted) {
-        context.showError(e);
+        final saleViewModel = context.read<SaleViewModel>();
+        final errorType = saleViewModel.errorType ?? AppErrorType.desconocido;
+        showAppError(context, errorType);
       }
     } finally {
       if (mounted) {
@@ -180,10 +183,9 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
             Expanded(
               child: Consumer<ProductViewModel>(
                 builder: (context, productVM, child) {
-                  if (productVM.isLoading) {
+                  if (productVM.isLoading && productVM.products.isEmpty) {
                     return const Center(child: CircularProgressIndicator());
                   }
-
                   if (productVM.error != null) {
                     return Center(
                       child: Column(
@@ -209,12 +211,10 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
                       ),
                     );
                   }
-
                   final filteredProducts = productVM.products.where((product) {
                     return product.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
                            product.description.toLowerCase().contains(_searchQuery.toLowerCase());
                   }).toList();
-
                   if (filteredProducts.isEmpty) {
                     return Center(
                       child: Column(
@@ -237,14 +237,29 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
                       ),
                     );
                   }
-
+                  Widget listWidget;
                   if (isMobile) {
-                    return _buildMobileLayout(filteredProducts);
+                    listWidget = _buildMobileLayout(filteredProducts);
                   } else if (isTablet) {
-                    return _buildTabletLayout(filteredProducts);
+                    listWidget = _buildTabletLayout(filteredProducts);
                   } else {
-                    return _buildDesktopLayout(filteredProducts);
+                    listWidget = _buildDesktopLayout(filteredProducts);
                   }
+                  return Column(
+                    children: [
+                      Expanded(child: listWidget),
+                      if (productVM.hasMore)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          child: ElevatedButton(
+                            onPressed: productVM.isLoadingMore ? null : () => productVM.loadMoreProducts(),
+                            child: productVM.isLoadingMore
+                                ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
+                                : const Text('Cargar más'),
+                          ),
+                        ),
+                    ],
+                  );
                 },
               ),
             ),

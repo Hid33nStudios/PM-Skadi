@@ -9,13 +9,18 @@ import '../viewmodels/category_viewmodel.dart';
 import '../widgets/custom_snackbar.dart';
 import '../utils/error_handler.dart';
 import 'edit_product_screen.dart';
+import '../widgets/responsive_form.dart';
+import '../theme/responsive.dart';
+import '../router/app_router.dart';
+import '../utils/error_cases.dart';
+import '../viewmodels/dashboard_viewmodel.dart';
 
 class ProductDetailScreen extends StatefulWidget {
-  final Product product;
+  final String productId;
 
   const ProductDetailScreen({
     super.key,
-    required this.product,
+    required this.productId,
   });
 
   @override
@@ -23,16 +28,26 @@ class ProductDetailScreen extends StatefulWidget {
 }
 
 class _ProductDetailScreenState extends State<ProductDetailScreen> {
-  bool _isLoading = false;
+  Product? _product;
+  bool _isLoading = true;
+  bool _isError = false;
+  String _errorMessage = '';
   String? _categoryName;
   final _quantityController = TextEditingController();
   final _noteController = TextEditingController();
   MovementType _selectedType = MovementType.entry;
+  List<Movement> _movements = [];
+  bool _isLoadingMovements = false;
+  bool _hasMoreMovements = true;
+  int _movementOffset = 0;
+  final int _movementLimit = 10;
 
   @override
   void initState() {
     super.initState();
+    _loadProduct();
     _loadCategory();
+    _loadInitialMovements();
   }
 
   @override
@@ -42,50 +57,141 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     super.dispose();
   }
 
-  Future<void> _loadCategory() async {
+  Future<void> _loadProduct() async {
     try {
-      final categoryViewModel = context.read<CategoryViewModel>();
-      await categoryViewModel.loadCategories();
-      
-      final category = categoryViewModel.categories.firstWhere(
-        (c) => c.id == widget.product.categoryId,
-        orElse: () => Category(
-          id: '',
-          name: 'Sin categoría',
-          description: 'Categoría no encontrada',
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
-        ),
-      );
+      setState(() {
+        _isLoading = true;
+        _isError = false;
+      });
+
+      final productViewModel = context.read<ProductViewModel>();
+      final product = await productViewModel.getProductById(widget.productId);
       
       if (mounted) {
         setState(() {
-          _categoryName = category.name;
+          _product = product;
+          _isLoading = false;
         });
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _categoryName = 'Error al cargar categoría';
+          _isError = true;
+          _errorMessage = e.toString();
+          _isLoading = false;
         });
+        final productViewModel = context.read<ProductViewModel>();
+        final errorType = productViewModel.errorType ?? AppErrorType.desconocido;
+        showAppError(context, errorType);
       }
+    }
+  }
+
+  Future<void> _loadCategory() async {
+    try {
+      final categoryViewModel = context.read<CategoryViewModel>();
+      await categoryViewModel.loadCategories();
+      
+      // Buscar la categoría del producto
+      if (_product?.categoryId != null && _product!.categoryId.isNotEmpty) {
+        try {
+          final category = categoryViewModel.categories.firstWhere(
+            (c) => c.id == _product!.categoryId,
+            orElse: () => Category(
+              id: '',
+              name: 'Sin categoría',
+              description: 'Categoría no encontrada',
+              createdAt: DateTime.now(),
+              updatedAt: DateTime.now(),
+            ),
+          );
+          
+          if (mounted) {
+            setState(() {
+              _categoryName = category.name;
+            });
+          }
+        } catch (e) {
+          if (mounted) {
+            setState(() {
+              _categoryName = 'Sin categoría';
+            });
+          }
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _categoryName = 'Sin categoría';
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _categoryName = 'Sin categoría';
+        });
+        final categoryViewModel = context.read<CategoryViewModel>();
+        final errorType = categoryViewModel.errorType ?? AppErrorType.desconocido;
+        showAppError(context, errorType);
+      }
+    }
+  }
+
+  Future<void> _loadInitialMovements() async {
+    setState(() {
+      _movements = [];
+      _movementOffset = 0;
+      _hasMoreMovements = true;
+      _isLoadingMovements = true;
+    });
+    await _loadMoreMovements();
+  }
+
+  Future<void> _loadMoreMovements() async {
+    if (_isLoadingMovements || !_hasMoreMovements || _product == null) return;
+    setState(() {
+      _isLoadingMovements = true;
+    });
+    try {
+      final movementVM = context.read<MovementViewModel>();
+      final allMovements = await movementVM.dataService.getAllMovements(offset: _movementOffset, limit: _movementLimit);
+      final newMovements = allMovements.where((m) => m.productId == _product!.id).toList();
+      setState(() {
+        // Filtrar duplicados por id
+        final existingIds = _movements.map((m) => m.id).toSet();
+        final uniqueNewMovements = newMovements.where((m) => !existingIds.contains(m.id)).toList();
+        _movements.addAll(uniqueNewMovements);
+        _movementOffset += uniqueNewMovements.length;
+        if (uniqueNewMovements.length < _movementLimit) {
+          _hasMoreMovements = false;
+        }
+      });
+    } catch (e) {
+      final movementVM = context.read<MovementViewModel>();
+      final errorType = movementVM.errorType ?? AppErrorType.desconocido;
+      showAppError(context, errorType);
+      // Manejo simple de error
+    } finally {
+      setState(() {
+        _isLoadingMovements = false;
+      });
     }
   }
 
   Future<void> _addMovement() async {
     if (_quantityController.text.isEmpty) {
-      context.showError('Por favor ingresa una cantidad');
+      showAppError(context, AppErrorType.campoObligatorio);
       return;
     }
 
     final quantity = int.tryParse(_quantityController.text);
     if (quantity == null || quantity <= 0) {
-      context.showError('La cantidad debe ser un número positivo');
+      showAppError(context, AppErrorType.valorFueraDeRango);
       return;
     }
 
-    if (_selectedType == MovementType.exit && quantity > widget.product.stock) {
-      context.showError('No hay suficiente stock disponible');
+    if (_selectedType == MovementType.exit && quantity > _product!.stock) {
+      showAppError(context, AppErrorType.stockInsuficiente);
       return;
     }
 
@@ -94,8 +200,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     try {
       final movement = Movement(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
-        productId: widget.product.id,
-        productName: widget.product.name,
+        productId: _product!.id,
+        productName: _product!.name,
         quantity: quantity,
         type: _selectedType,
         date: DateTime.now(),
@@ -103,7 +209,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       );
 
       await context.read<MovementViewModel>().addMovement(movement);
-      await context.read<ProductViewModel>().loadProducts();
+      await context.read<ProductViewModel>().loadInitialProducts();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -126,311 +232,338 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.product.name),
+  Future<void> _deleteProduct() async {
+    if (_product == null) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirmar Eliminación'),
+        content: Text(
+          '¿Estás seguro de que quieres eliminar el producto "${_product!.name}"? Esta acción no se puede deshacer.',
+        ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.edit),
-            onPressed: () async {
-              await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => EditProductScreen(
-                    product: widget.product,
-                  ),
-                ),
-              );
-              Navigator.pop(context);
-            },
-            tooltip: 'Editar producto',
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Eliminar'),
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
+    );
+
+    if (confirmed == true && mounted) {
+      try {
+        final productViewModel = context.read<ProductViewModel>();
+        await productViewModel.deleteProduct(_product!.id);
+        
+        // Recargar dashboard inmediatamente
+        context.read<DashboardViewModel>().loadDashboardData();
+        if (mounted) {
+          CustomSnackBar.showSuccess(
+            context: context,
+            message: 'Producto eliminado exitosamente',
+          );
+          context.goToProducts();
+        }
+      } catch (e) {
+        if (mounted) {
+          context.showError(e);
+        }
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(_product?.name ?? 'Detalles del Producto'),
+        actions: [
+          if (_product != null) ...[
+            IconButton(
+              icon: const Icon(Icons.edit),
+              onPressed: () => context.goToEditProduct(_product!.id),
+              tooltip: 'Editar Producto',
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete),
+              onPressed: _deleteProduct,
+              tooltip: 'Eliminar Producto',
+            ),
+          ],
+        ],
+      ),
+      body: _buildBody(theme),
+    );
+  }
+
+  Widget _buildBody(ThemeData theme) {
+    if (_isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(),
+      );
+    }
+
+    if (_isError) {
+      return Center(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Card(
-              elevation: 2,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.inventory_2,
-                          color: Theme.of(context).primaryColor,
-                        ),
-                        const SizedBox(width: 8),
-                        const Text(
-                          'Información del Producto',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    _buildInfoRow('Nombre', widget.product.name),
-                    _buildInfoRow('Descripción', widget.product.description),
-                    _buildInfoRow('Categoría', _categoryName ?? 'Cargando...'),
-                    _buildInfoRow(
-                      'Precio',
-                      '\$${widget.product.price.toStringAsFixed(2)}',
-                    ),
-                    _buildStockInfo(),
-                    _buildInfoRow(
-                      'Stock Mínimo',
-                      '${widget.product.minStock} unidades',
-                    ),
-                    _buildInfoRow(
-                      'Stock Máximo',
-                      '${widget.product.maxStock} unidades',
-                    ),
-                  ],
+            Icon(
+              Icons.error_outline,
+              size: 64,
+              color: theme.colorScheme.error,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Error al cargar el producto',
+              style: theme.textTheme.headlineSmall,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _errorMessage,
+              style: theme.textTheme.bodyMedium,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: _loadProduct,
+              child: const Text('Reintentar'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_product == null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.inventory_2_outlined,
+              size: 64,
+              color: theme.colorScheme.onSurface.withOpacity(0.5),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Producto no encontrado',
+              style: theme.textTheme.headlineSmall,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'El producto que buscas no existe o ha sido eliminado.',
+              style: theme.textTheme.bodyMedium,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: () => context.goToProducts(),
+              child: const Text('Volver a Productos'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return _buildProductDetails(theme);
+  }
+
+  Widget _buildProductDetails(ThemeData theme) {
+    final product = _product!;
+    
+    return Responsive.isMobile(context)
+        ? _buildMobileLayout(theme, product)
+        : Responsive.isTablet(context)
+            ? _buildTabletLayout(theme, product)
+            : _buildDesktopLayout(theme, product);
+  }
+
+  Widget _buildMobileLayout(ThemeData theme, Product product) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildProductHeader(theme, product),
+          const SizedBox(height: 24),
+          _buildProductInfo(theme, product),
+          const SizedBox(height: 24),
+          _buildProductActions(theme),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTabletLayout(ThemeData theme, Product product) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          flex: 2,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildProductHeader(theme, product),
+                const SizedBox(height: 32),
+                _buildProductInfo(theme, product),
+              ],
+            ),
+          ),
+        ),
+        Expanded(
+          flex: 1,
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface,
+              border: Border(
+                left: BorderSide(
+                  color: theme.colorScheme.outline.withOpacity(0.2),
                 ),
               ),
             ),
-            const SizedBox(height: 24),
-            Card(
-              elevation: 2,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.swap_horiz,
-                          color: Colors.orange,
-                        ),
-                        const SizedBox(width: 8),
-                        const Text(
-                          'Registrar Movimiento',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    SegmentedButton<MovementType>(
-                      segments: const [
-                        ButtonSegment(
-                          value: MovementType.entry,
-                          label: Text('Entrada'),
-                          icon: Icon(Icons.add),
-                        ),
-                        ButtonSegment(
-                          value: MovementType.exit,
-                          label: Text('Salida'),
-                          icon: Icon(Icons.remove),
-                        ),
-                      ],
-                      selected: {_selectedType},
-                      onSelectionChanged: (Set<MovementType> selected) {
-                        setState(() {
-                          _selectedType = selected.first;
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: _quantityController,
-                      decoration: const InputDecoration(
-                        labelText: 'Cantidad *',
-                        border: OutlineInputBorder(),
-                      ),
-                      keyboardType: TextInputType.number,
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: _noteController,
-                      decoration: const InputDecoration(
-                        labelText: 'Nota (opcional)',
-                        border: OutlineInputBorder(),
-                      ),
-                      maxLines: 2,
-                    ),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: _isLoading ? null : _addMovement,
-                        icon: _isLoading
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : const Icon(Icons.add),
-                        label: Text(_isLoading ? 'Registrando...' : 'Registrar Movimiento'),
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                        ),
-                      ),
-                    ),
-                  ],
+            child: _buildProductActions(theme),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDesktopLayout(ThemeData theme, Product product) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          flex: 3,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildProductHeader(theme, product),
+                const SizedBox(height: 40),
+                _buildProductInfo(theme, product),
+              ],
+            ),
+          ),
+        ),
+        Expanded(
+          flex: 1,
+          child: Container(
+            padding: const EdgeInsets.all(32),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface,
+              border: Border(
+                left: BorderSide(
+                  color: theme.colorScheme.outline.withOpacity(0.2),
                 ),
               ),
             ),
-            const SizedBox(height: 24),
-            Card(
-              elevation: 2,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+            child: _buildProductActions(theme),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildProductHeader(ThemeData theme, Product product) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                product.name,
+                style: theme.textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.history,
-                          color: Colors.purple,
-                        ),
-                        const SizedBox(width: 8),
-                        const Text(
-                          'Últimos Movimientos',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Consumer<MovementViewModel>(
-                      builder: (context, movementVM, child) {
-                        if (movementVM.isLoading) {
-                          return const Center(child: CircularProgressIndicator());
-                        }
-
-                        if (movementVM.error != null && movementVM.error!.isNotEmpty) {
-                          return Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.error_outline,
-                                  size: 48,
-                                  color: Colors.red[300],
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  movementVM.error!,
-                                  style: const TextStyle(fontSize: 14),
-                                  textAlign: TextAlign.center,
-                                ),
-                              ],
-                            ),
-                          );
-                        }
-
-                        final movements = movementVM.getMovementsByProduct(widget.product.id);
-                        if (movements.isEmpty) {
-                          return Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.history_outlined,
-                                  size: 48,
-                                  color: Colors.grey[400],
-                                ),
-                                const SizedBox(height: 8),
-                                const Text(
-                                  'No hay movimientos registrados',
-                                  style: TextStyle(fontSize: 14),
-                                  textAlign: TextAlign.center,
-                                ),
-                              ],
-                            ),
-                          );
-                        }
-
-                        return ListView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: movements.length,
-                          itemBuilder: (context, index) {
-                            final movement = movements[index];
-                            return Card(
-                              margin: const EdgeInsets.only(bottom: 8),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: ListTile(
-                                leading: Container(
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color: movement.type == MovementType.entry
-                                        ? Colors.green.withOpacity(0.1)
-                                        : Colors.red.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Icon(
-                                    movement.type == MovementType.entry
-                                        ? Icons.add_circle_outline
-                                        : Icons.remove_circle_outline,
-                                    color: movement.type == MovementType.entry
-                                        ? Colors.green
-                                        : Colors.red,
-                                    size: 20,
-                                  ),
-                                ),
-                                title: Text(
-                                  '${movement.type == MovementType.entry ? "Entrada" : "Salida"} de ${movement.quantity} unidades',
-                                  style: const TextStyle(fontWeight: FontWeight.w500),
-                                ),
-                                subtitle: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    if (movement.note != null && movement.note!.isNotEmpty)
-                                      Text(
-                                        movement.note!,
-                                        style: TextStyle(
-                                          color: Colors.grey[600],
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                    Text(
-                                      _formatDate(movement.date),
-                                      style: TextStyle(
-                                        color: Colors.grey[500],
-                                        fontSize: 11,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
-                        );
-                      },
-                    ),
-                  ],
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: _getStockColor(theme, product.stock),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Text(
+                'Stock: ${product.stock}',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
             ),
           ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Código: ${product.barcode ?? product.sku ?? 'N/A'}',
+          style: theme.textTheme.bodyLarge?.copyWith(
+            color: theme.colorScheme.onSurface.withOpacity(0.7),
+          ),
+        ),
+        if (product.categoryId.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(
+            'Categoría ID: ${product.categoryId}',
+            style: theme.textTheme.bodyLarge?.copyWith(
+              color: theme.colorScheme.onSurface.withOpacity(0.7),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildProductInfo(ThemeData theme, Product product) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Información del Producto',
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 16),
+        _buildInfoCard(theme, [
+          _buildInfoRow('Precio', '\$${product.price.toStringAsFixed(2)}'),
+          _buildInfoRow('Stock Mínimo', product.minStock.toString()),
+          _buildInfoRow('Stock Máximo', product.maxStock.toString()),
+          if (product.description.isNotEmpty)
+            _buildInfoRow('Descripción', product.description),
+        ]),
+        const SizedBox(height: 24),
+        Text(
+          'Historial de Movimientos',
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 16),
+        _buildMovementsCard(theme),
+      ],
+    );
+  }
+
+  Widget _buildInfoCard(ThemeData theme, List<Widget> children) {
+    return Card(
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: children,
         ),
       ),
     );
@@ -438,98 +571,167 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 
   Widget _buildInfoRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12.0),
+      padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            width: 120,
+          Expanded(
+            flex: 2,
             child: Text(
               label,
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Colors.grey,
-              ),
+              style: const TextStyle(fontWeight: FontWeight.w500),
             ),
           ),
           Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(fontSize: 16),
-            ),
+            flex: 3,
+            child: Text(value),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildStockInfo() {
-    Color stockColor;
-    IconData stockIcon;
-    
-    if (widget.product.stock <= 0) {
-      stockColor = Colors.red;
-      stockIcon = Icons.error_outline;
-    } else if (widget.product.stock <= widget.product.minStock) {
-      stockColor = Colors.orange;
-      stockIcon = Icons.warning_outlined;
-    } else {
-      stockColor = Colors.green;
-      stockIcon = Icons.check_circle_outline;
-    }
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 120,
-            child: Text(
-              'Stock Actual',
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Colors.grey,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Row(
+  Widget _buildMovementsCard(ThemeData theme) {
+    return Card(
+      elevation: 2,
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 200),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
-                Icon(
-                  stockIcon,
-                  color: stockColor,
-                  size: 20,
-                ),
+                Icon(Icons.history, color: theme.colorScheme.primary),
                 const SizedBox(width: 8),
-                Text(
-                  '${widget.product.stock} unidades',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: stockColor,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
+                Text('Historial de Movimientos', style: theme.textTheme.titleMedium),
               ],
             ),
-          ),
-        ],
+            const SizedBox(height: 12),
+            if (_isLoadingMovements && _movements.isEmpty)
+              const Center(child: CircularProgressIndicator()),
+            if (_movements.isEmpty && !_isLoadingMovements)
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Text('No hay movimientos para este producto.', style: theme.textTheme.bodyMedium),
+              ),
+            if (_movements.isNotEmpty)
+              ..._movements.map((m) => ListTile(
+                    leading: Icon(
+                      m.type == MovementType.entry ? Icons.add : Icons.remove,
+                      color: m.type == MovementType.entry ? Colors.green : Colors.red,
+                    ),
+                    title: Text(
+                      '${m.type == MovementType.entry ? 'Entrada' : 'Salida'} de ${m.quantity} unidades',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: Text('${_formatDate(m.date)}${m.note != null && m.note!.isNotEmpty ? ' - ${m.note}' : ''}'),
+                  )),
+            if (_hasMoreMovements && !_isLoadingMovements)
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: ElevatedButton(
+                    onPressed: _isLoadingMovements ? null : _loadMoreMovements,
+                    child: _isLoadingMovements
+                        ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Text('Cargar más'),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
+  }
+
+  Widget _buildProductActions(ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'Acciones',
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 16),
+        ResponsiveButtonRow(
+          children: [
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: () => context.goToEditProduct(_product!.id),
+                icon: const Icon(Icons.edit),
+                label: const Text('Editar'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: () => context.goToAddSale(),
+                icon: const Icon(Icons.add_shopping_cart),
+                label: const Text('Vender'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: _deleteProduct,
+          icon: const Icon(Icons.delete),
+          label: const Text('Eliminar Producto'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: Colors.red,
+            side: const BorderSide(color: Colors.red),
+            padding: const EdgeInsets.symmetric(vertical: 16),
+          ),
+        ),
+        const SizedBox(height: 24),
+        Text(
+          'Información Adicional',
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 16),
+        _buildAdditionalInfo(theme),
+      ],
+    );
+  }
+
+  Widget _buildAdditionalInfo(ThemeData theme) {
+    final product = _product!;
+    
+    return Card(
+      elevation: 1,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            _buildInfoRow('Creado', _formatDate(product.createdAt)),
+            _buildInfoRow('Última Actualización', _formatDate(product.updatedAt)),
+            _buildInfoRow('ID', product.id),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Color _getStockColor(ThemeData theme, int stock) {
+    if (stock <= 0) return Colors.red;
+    if (stock <= 5) return Colors.orange;
+    return Colors.green;
   }
 
   String _formatDate(DateTime date) {
-    final now = DateTime.now();
-    final difference = now.difference(date);
-
-    if (difference.inDays > 0) {
-      return 'Hace ${difference.inDays} día${difference.inDays > 1 ? 's' : ''}';
-    } else if (difference.inHours > 0) {
-      return 'Hace ${difference.inHours} hora${difference.inHours > 1 ? 's' : ''}';
-    } else if (difference.inMinutes > 0) {
-      return 'Hace ${difference.inMinutes} minuto${difference.inMinutes > 1 ? 's' : ''}';
-    } else {
-      return 'Ahora mismo';
-    }
+    return '${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
   }
 } 

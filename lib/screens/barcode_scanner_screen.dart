@@ -12,6 +12,8 @@ import 'dart:io' show Platform;
 // Importar dart:html solo en web
 // ignore: avoid_web_libraries_in_flutter
 import 'dart:html' as html;
+import 'dart:js' as js;
+import '../utils/error_cases.dart';
 
 class BarcodeScannerScreen extends StatefulWidget {
   const BarcodeScannerScreen({super.key});
@@ -34,6 +36,10 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
   @override
   void initState() {
     super.initState();
+    // Si es web, cargar ZXing antes de inicializar el escáner
+    if (kIsWeb) {
+      (js.context['loadZXing'] as void Function()?)?.call();
+    }
     // Si es móvil o web móvil, inicializar el escáner automáticamente
     if (_shouldShowCameraButton()) {
       _initializeScanner();
@@ -75,6 +81,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
           setState(() {
             _scannerError = 'Permiso de cámara denegado.';
           });
+          showAppError(context, AppErrorType.permisos);
           showDialog(
             context: context,
             builder: (context) => AlertDialog(
@@ -109,6 +116,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
         setState(() {
           _scannerError = 'Error al inicializar la cámara: \\n${e.toString()}';
         });
+        showAppError(context, AppErrorType.errorAlDescargarDatos);
         showDialog(
           context: context,
           builder: (context) => AlertDialog(
@@ -158,10 +166,9 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
       }
     } catch (e) {
       if (mounted) {
-        CustomSnackBar.showError(
-          context: context,
-          message: 'Error procesando código de barras: ${e.toString()}',
-        );
+        final productViewModel = context.read<ProductViewModel>();
+        final errorType = productViewModel.errorType ?? AppErrorType.errorAlDescargarDatos;
+        showAppError(context, errorType);
       }
     } finally {
       if (mounted) {

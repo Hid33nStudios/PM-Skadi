@@ -1,9 +1,11 @@
 import 'package:flutter/foundation.dart' as foundation;
+import 'package:flutter/material.dart';
 import '../models/sale.dart';
 import '../models/sale_item.dart';
 import '../services/hybrid_data_service.dart';
 import '../services/auth_service.dart';
 import '../utils/error_handler.dart';
+import '../utils/error_cases.dart';
 
 class SaleViewModel extends foundation.ChangeNotifier {
   final HybridDataService _dataService;
@@ -14,6 +16,16 @@ class SaleViewModel extends foundation.ChangeNotifier {
   Map<String, dynamic> _saleStats = {};
   bool _isLoading = false;
   String? _error;
+  AppErrorType? _errorType;
+  AppErrorType? get errorType => _errorType;
+  
+  // Callback para notificar cambios al dashboard
+  VoidCallback? _onSaleAdded;
+
+  int _offset = 0;
+  final int _limit = 100;
+  bool _hasMore = true;
+  bool _isLoadingMore = false;
 
   SaleViewModel(this._dataService, this._authService);
 
@@ -22,29 +34,55 @@ class SaleViewModel extends foundation.ChangeNotifier {
   Map<String, dynamic> get saleStats => _saleStats;
   bool get isLoading => _isLoading;
   String? get error => _error;
+  bool get hasMore => _hasMore;
+  bool get isLoadingMore => _isLoadingMore;
+
+  // Método para registrar el callback
+  void setOnSaleAddedCallback(VoidCallback callback) {
+    _onSaleAdded = callback;
+  }
+
+  // Método para limpiar el callback
+  void clearOnSaleAddedCallback() {
+    _onSaleAdded = null;
+  }
 
   Future<void> loadSales() async {
     try {
+      print('🔄 [PRODUCCION] Iniciando carga de ventas...');
+      print('🔄 [PRODUCCION] Usuario autenticado: ${_authService.currentUser?.uid ?? 'NO AUTENTICADO'}');
+      print('🔄 [PRODUCCION] Estado inicial - isLoading: $_isLoading');
+      
       _isLoading = true;
       _error = null;
+      _errorType = null;
+      print('🔄 [PRODUCCION] Estado después de setear isLoading=true: $_isLoading');
       notifyListeners();
+      print('🔄 [PRODUCCION] notifyListeners() llamado');
 
-      print('🔄 Cargando ventas');
-      
       _sales = await _dataService.getAllSales();
-      
-      print('📊 Ventas cargadas: ${_sales.length}');
+      print('✅ [PRODUCCION] Ventas cargadas: ${_sales.length}');
       for (var sale in _sales) {
-        print('  - Venta ${sale.id}: \$${sale.amount} - ${sale.quantity} items');
+        print('  - Venta ${sale.id}: ${sale.amount} - ${sale.quantity} items');
       }
       
       await _loadSaleStats();
+      print('🔄 [PRODUCCION] Estadísticas cargadas');
+      
       _isLoading = false;
+      print('🔄 [PRODUCCION] Estado después de setear isLoading=false: $_isLoading');
       notifyListeners();
+      print('✅ [PRODUCCION] notifyListeners() final llamado - Carga completada');
     } catch (e, stackTrace) {
-      _error = AppError.fromException(e, stackTrace).message;
+      print('❌ [PRODUCCION] Error al cargar ventas: $e');
+      print('❌ [PRODUCCION] Stack: $stackTrace');
+      final appError = AppError.fromException(e, stackTrace);
+      _error = appError.message;
+      _errorType = appError.appErrorType;
       _isLoading = false;
+      print('🔄 [PRODUCCION] Estado después de error - isLoading: $_isLoading');
       notifyListeners();
+      print('❌ [PRODUCCION] notifyListeners() de error llamado');
     }
   }
 
@@ -67,14 +105,31 @@ class SaleViewModel extends foundation.ChangeNotifier {
 
   Future<bool> addSale(Sale sale) async {
     try {
-      print('🔄 SaleViewModel: Agregando venta: \$${sale.amount}');
+      print('🔄 SaleViewModel: Agregando venta: ${sale.amount}');
+      print('📝 SaleViewModel: Datos de la venta: ${sale.toMap()}');
       
+      print('🔄 SaleViewModel: Llamando a _dataService.createSale...');
       await _dataService.createSale(sale);
+      print('✅ SaleViewModel: _dataService.createSale completado');
+      
+      print('🔄 SaleViewModel: Recargando ventas...');
       await loadSales();
       print('✅ SaleViewModel: Venta agregada exitosamente');
+      
+      // Notificar al dashboard que se agregó una venta
+      if (_onSaleAdded != null) {
+        print('🔄 SaleViewModel: Notificando al dashboard...');
+        _onSaleAdded!();
+      }
+      _errorType = null;
       return true;
     } catch (e, stackTrace) {
-      _error = AppError.fromException(e, stackTrace).message;
+      print('❌ SaleViewModel: Error al agregar venta: $e');
+      print('❌ SaleViewModel: Stack trace: $stackTrace');
+      final appError = AppError.fromException(e, stackTrace);
+      _error = appError.message;
+      _errorType = appError.appErrorType;
+      print('❌ SaleViewModel: Error procesado: $_error');
       notifyListeners();
       return false;
     }
@@ -87,9 +142,12 @@ class SaleViewModel extends foundation.ChangeNotifier {
       await _dataService.deleteSale(id);
       await loadSales();
       print('✅ SaleViewModel: Venta eliminada exitosamente');
+      _errorType = null;
       return true;
     } catch (e, stackTrace) {
-      _error = AppError.fromException(e, stackTrace).message;
+      final appError = AppError.fromException(e, stackTrace);
+      _error = appError.message;
+      _errorType = appError.appErrorType;
       notifyListeners();
       return false;
     }
@@ -159,5 +217,35 @@ class SaleViewModel extends foundation.ChangeNotifier {
   void clearSelectedSale() {
     _selectedSale = null;
     notifyListeners();
+  }
+
+  Future<void> loadInitialSales() async {
+    _sales = [];
+    _offset = 0;
+    _hasMore = true;
+    await loadMoreSales();
+  }
+
+  Future<void> loadMoreSales() async {
+    if (_isLoadingMore || !_hasMore) return;
+    _isLoadingMore = true;
+    notifyListeners();
+    try {
+      final newSales = await _dataService.getAllSales(offset: _offset, limit: _limit);
+      if (newSales.length < _limit) {
+        _hasMore = false;
+      }
+      // Filtrar duplicados por id
+      final existingIds = _sales.map((s) => s.id).toSet();
+      final uniqueNewSales = newSales.where((s) => !existingIds.contains(s.id)).toList();
+      _sales.addAll(uniqueNewSales);
+      _offset += uniqueNewSales.length;
+      await _loadSaleStats();
+    } catch (e, stackTrace) {
+      _error = AppError.fromException(e, stackTrace).message;
+    } finally {
+      _isLoadingMore = false;
+      notifyListeners();
+    }
   }
 } 

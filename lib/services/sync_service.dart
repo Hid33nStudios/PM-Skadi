@@ -54,9 +54,13 @@ class SyncService {
   /// Inicializar sincronización
   Future<void> _initializeSync() async {
     try {
+      print('🔄 SyncService: Inicializando sincronización...');
+      
       // Verificar conectividad inicial
       final connectivityResult = await _connectivity.checkConnectivity();
       _isOnline = connectivityResult != ConnectivityResult.none;
+      
+      print('📊 SyncService: Conectividad inicial: $connectivityResult, Online: $_isOnline');
       
       // Suscribirse a cambios de conectividad
       _connectivitySubscription = _connectivity.onConnectivityChanged.listen(
@@ -65,8 +69,11 @@ class SyncService {
       
       // Iniciar sincronización si está online
       if (_isOnline) {
+        print('🔄 SyncService: Iniciando sincronización en tiempo real...');
         await _startRealtimeSync();
         await _syncPendingChanges();
+      } else {
+        print('📊 SyncService: Modo offline - sincronización diferida');
       }
       
       // Configurar timer de sincronización
@@ -75,7 +82,9 @@ class SyncService {
         (_) => _performPeriodicSync(),
       );
       
+      print('✅ SyncService: Sincronización inicializada correctamente');
     } catch (e) {
+      print('❌ SyncService: Error inicializando sincronización: $e');
       throw AppError.fromException(e);
     }
   }
@@ -85,12 +94,16 @@ class SyncService {
     final wasOnline = _isOnline;
     _isOnline = result != ConnectivityResult.none;
     
+    print('📊 SyncService: Cambio de conectividad: $result, Online: $_isOnline');
+    
     if (!wasOnline && _isOnline) {
       // Conectado - iniciar sincronización
+      print('🔄 SyncService: Conectado - iniciando sincronización en tiempo real');
       _startRealtimeSync();
       _syncPendingChanges();
     } else if (wasOnline && !_isOnline) {
       // Desconectado - detener sincronización
+      print('📊 SyncService: Desconectado - deteniendo sincronización en tiempo real');
       _stopRealtimeSync();
     }
   }
@@ -559,7 +572,7 @@ class SyncService {
 
   /// Obtener estado de sincronización
   Map<String, dynamic> getSyncStatus() {
-    return {
+    final status = {
       'isOnline': _isOnline,
       'isSyncing': _isSyncing,
       'lastSyncTime': _lastSyncTime?.toIso8601String(),
@@ -571,6 +584,9 @@ class SyncService {
         'timestamp': change['timestamp'],
       }).toList(),
     };
+    
+    print('📊 SyncService: Estado de sincronización: $status');
+    return status;
   }
 
   /// Limpiar cambios pendientes

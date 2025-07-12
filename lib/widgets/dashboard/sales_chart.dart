@@ -1,46 +1,48 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:provider/provider.dart';
-import '../../viewmodels/sale_viewmodel.dart';
+import '../../viewmodels/dashboard_viewmodel.dart';
+import '../../widgets/skeleton_loading.dart';
 
 class SalesChart extends StatelessWidget {
   const SalesChart({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<SaleViewModel>(
-      builder: (context, viewModel, _) {
-        if (viewModel.isLoading) {
-          return const Center(child: CircularProgressIndicator());
+    return Selector<DashboardViewModel, Map<String, dynamic>>(
+      selector: (_, vm) => {
+        'sales': vm.dashboardData?.sales ?? [],
+        'weekRevenue': vm.weekRevenue,
+        'weekSales': vm.weekSales,
+        'isLoading': vm.isLoading,
+        'error': vm.error,
+      },
+      builder: (context, data, _) {
+        if (data['isLoading'] as bool) {
+          return const SkeletonLoading(height: 120, width: double.infinity, borderRadius: 12);
         }
-
-        if (viewModel.error != null) {
+        if (data['error'] != null) {
           return Center(
             child: Text(
-              'Error: ${viewModel.error}',
+              'Error: ${data['error']}',
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
           );
         }
-
-        final sales = viewModel.sales;
+        final sales = data['sales'] as List;
         if (sales.isEmpty) {
           return const Center(
             child: Text('No hay datos de ventas disponibles'),
           );
         }
-
         // Agrupar ventas por día (últimos 7 días)
         final now = DateTime.now();
         final salesByDay = <String, double>{};
-        
         for (int i = 6; i >= 0; i--) {
           final date = now.subtract(Duration(days: i));
           final dateKey = '${date.day}/${date.month}';
           salesByDay[dateKey] = 0.0;
         }
-
-        // Sumar ventas por día
         for (final sale in sales) {
           final saleDate = sale.date;
           if (saleDate.isAfter(now.subtract(const Duration(days: 7)))) {
@@ -48,10 +50,24 @@ class SalesChart extends StatelessWidget {
             salesByDay[dateKey] = (salesByDay[dateKey] ?? 0.0) + sale.amount;
           }
         }
-
         final salesData = salesByDay.values.toList();
         final dates = salesByDay.keys.toList();
-        
+        final isMobile = MediaQuery.of(context).size.width < 600;
+        if (isMobile) {
+          return Container(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Ventas de la semana', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black)),
+                const SizedBox(height: 8),
+                Text('Total: \$${(data['weekRevenue'] as double).toStringAsFixed(2)}', style: const TextStyle(fontSize: 18, color: Colors.green)),
+                const SizedBox(height: 8),
+                Text('Cantidad: ${data['weekSales']}', style: const TextStyle(fontSize: 16)),
+              ],
+            ),
+          );
+        }
         return LineChart(
           LineChartData(
             gridData: FlGridData(show: false),

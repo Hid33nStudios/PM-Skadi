@@ -3,6 +3,11 @@ import 'package:provider/provider.dart';
 import '../viewmodels/sale_viewmodel.dart';
 import '../models/sale.dart';
 import '../utils/error_handler.dart';
+import '../widgets/responsive_form.dart';
+import '../theme/responsive.dart';
+import '../router/app_router.dart';
+import '../utils/error_cases.dart';
+import '../viewmodels/dashboard_viewmodel.dart';
 
 class SalesScreen extends StatefulWidget {
   const SalesScreen({super.key});
@@ -18,7 +23,10 @@ class _SalesScreenState extends State<SalesScreen> {
   @override
   void initState() {
     super.initState();
-    _loadSales();
+    // Usar addPostFrameCallback para evitar llamar setState durante build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadSales();
+    });
   }
 
   @override
@@ -55,6 +63,8 @@ class _SalesScreenState extends State<SalesScreen> {
       try {
         final success = await context.read<SaleViewModel>().deleteSale(sale.id);
         if (success) {
+          // Recargar dashboard inmediatamente
+          context.read<DashboardViewModel>().loadDashboardData();
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
@@ -66,7 +76,9 @@ class _SalesScreenState extends State<SalesScreen> {
         }
       } catch (e) {
         if (mounted) {
-          context.showError(e);
+          final saleViewModel = context.read<SaleViewModel>();
+          final errorType = saleViewModel.errorType ?? AppErrorType.desconocido;
+          showAppError(context, errorType);
         }
       }
     }
@@ -170,7 +182,7 @@ class _SalesScreenState extends State<SalesScreen> {
               const SizedBox(width: 16),
               ElevatedButton.icon(
                 onPressed: () {
-                  Navigator.pushNamed(context, '/new-sale');
+                  context.goToNewSale();
                 },
                 icon: const Icon(Icons.add),
                 label: const Text('Nueva Venta'),
@@ -184,39 +196,26 @@ class _SalesScreenState extends State<SalesScreen> {
         Expanded(
           child: Consumer<SaleViewModel>(
             builder: (context, saleVM, child) {
+              print('🔄 [PRODUCCION] Consumer rebuild - isLoading: ${saleVM.isLoading}, error: ${saleVM.error}, sales count: ${saleVM.sales.length}');
+              
               if (saleVM.isLoading) {
+                print('🔄 [PRODUCCION] Mostrando CircularProgressIndicator');
                 return const Center(child: CircularProgressIndicator());
               }
 
               if (saleVM.error != null) {
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.error_outline,
-                        size: 64,
-                        color: Colors.red[300],
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        saleVM.error!,
-                        style: const TextStyle(fontSize: 16),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: _loadSales,
-                        child: const Text('Reintentar'),
-                      ),
-                    ],
-                  ),
-                );
+                final errorType = saleVM.errorType ?? AppErrorType.desconocido;
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  showAppError(context, errorType);
+                });
+                return const SizedBox.shrink();
               }
 
               final sales = saleVM.searchSales(_searchQuery);
+              print('🔄 [PRODUCCION] Ventas filtradas: ${sales.length}');
 
               if (sales.isEmpty) {
+                print('🔄 [PRODUCCION] Mostrando mensaje de no hay ventas');
                 return Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -238,7 +237,7 @@ class _SalesScreenState extends State<SalesScreen> {
                         const SizedBox(height: 16),
                         ElevatedButton.icon(
                           onPressed: () {
-                            Navigator.pushNamed(context, '/new-sale');
+                            context.goToNewSale();
                           },
                           icon: const Icon(Icons.add),
                           label: const Text('Crear Venta'),
@@ -249,6 +248,7 @@ class _SalesScreenState extends State<SalesScreen> {
                 );
               }
 
+              print('🔄 [PRODUCCION] Mostrando lista de ventas');
               return ListView.builder(
                 padding: const EdgeInsets.all(16),
                 itemCount: sales.length,

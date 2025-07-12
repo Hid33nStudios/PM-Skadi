@@ -10,9 +10,16 @@ import 'package:flutter/foundation.dart';
 import 'dart:html' as html;
 import '../viewmodels/product_viewmodel.dart';
 import '../models/product.dart';
+// Deferred imports para precarga
+import '../widgets/dashboard/sales_chart.dart' deferred as sales_chart;
+import '../widgets/dashboard/category_distribution.dart' deferred as category_distribution;
+import '../widgets/dashboard/recent_activity.dart' deferred as recent_activity;
+import '../widgets/dashboard/stock_status.dart' deferred as stock_status;
+import '../widgets/dashboard/sales_summary.dart' deferred as sales_summary;
 
 class AppInitializer extends StatefulWidget {
   final Widget child;
+  static final ValueNotifier<bool> isInitializedNotifier = ValueNotifier(false);
 
   const AppInitializer({
     Key? key,
@@ -184,7 +191,7 @@ class _AppInitializerState extends State<AppInitializer> {
         _initializationStatus = 'Completado';
         _isInitialized = true;
       });
-
+      AppInitializer.isInitializedNotifier.value = true;
       print('✅ AppInitializer: Servicios inicializados correctamente');
     } catch (e, stack) {
       setState(() {
@@ -207,7 +214,7 @@ class _AppInitializerState extends State<AppInitializer> {
               children: [
                 // Logo
                 Image.asset(
-                  'assets/images/logo.png',
+                  'assets/images/logo.webp',
                   height: 120,
                 ),
                 const SizedBox(height: 40),
@@ -289,6 +296,17 @@ class _AppInitializerState extends State<AppInitializer> {
     }
 
     return widget.child;
+  }
+
+  Future<void> precargarBundlesDashboard() async {
+    // Precargar todos los bundles diferidos del dashboard en paralelo
+    await Future.wait([
+      sales_chart.loadLibrary(),
+      category_distribution.loadLibrary(),
+      recent_activity.loadLibrary(),
+      stock_status.loadLibrary(),
+      sales_summary.loadLibrary(),
+    ]);
   }
 }
 

@@ -3,6 +3,7 @@ import '../models/movement.dart';
 import '../services/hybrid_data_service.dart';
 import '../services/auth_service.dart';
 import '../utils/error_handler.dart';
+import '../utils/error_cases.dart';
 
 class MovementViewModel extends foundation.ChangeNotifier {
   final HybridDataService _dataService;
@@ -13,6 +14,12 @@ class MovementViewModel extends foundation.ChangeNotifier {
   Map<String, dynamic> _movementStats = {};
   bool _isLoading = false;
   String? _error;
+  AppErrorType? _errorType;
+  AppErrorType? get errorType => _errorType;
+  int _offset = 0;
+  final int _limit = 100;
+  bool _hasMore = true;
+  bool _isLoadingMore = false;
 
   MovementViewModel(this._dataService, this._authService);
 
@@ -21,11 +28,15 @@ class MovementViewModel extends foundation.ChangeNotifier {
   Map<String, dynamic> get movementStats => _movementStats;
   bool get isLoading => _isLoading;
   String? get error => _error;
+  bool get hasMore => _hasMore;
+  bool get isLoadingMore => _isLoadingMore;
+  HybridDataService get dataService => _dataService;
 
   Future<void> loadMovements() async {
     try {
       _isLoading = true;
       _error = null;
+      _errorType = null;
       notifyListeners();
 
       print('🔄 Cargando movimientos');
@@ -41,7 +52,9 @@ class MovementViewModel extends foundation.ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     } catch (e, stackTrace) {
-      _error = AppError.fromException(e, stackTrace).message;
+      final appError = AppError.fromException(e, stackTrace);
+      _error = appError.message;
+      _errorType = appError.appErrorType;
       _isLoading = false;
       notifyListeners();
     }
@@ -51,6 +64,7 @@ class MovementViewModel extends foundation.ChangeNotifier {
     try {
       _isLoading = true;
       _error = null;
+      _errorType = null;
       notifyListeners();
 
       _selectedMovement = _movements.firstWhere((movement) => movement.id == movementId);
@@ -58,7 +72,9 @@ class MovementViewModel extends foundation.ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     } catch (e, stackTrace) {
-      _error = AppError.fromException(e, stackTrace).message;
+      final appError = AppError.fromException(e, stackTrace);
+      _error = appError.message;
+      _errorType = appError.appErrorType;
       _isLoading = false;
       notifyListeners();
     }
@@ -71,9 +87,12 @@ class MovementViewModel extends foundation.ChangeNotifier {
       await _dataService.createMovement(movement);
       await loadMovements();
       print('✅ MovementViewModel: Movimiento agregado exitosamente');
+      _errorType = null;
       return true;
     } catch (e, stackTrace) {
-      _error = AppError.fromException(e, stackTrace).message;
+      final appError = AppError.fromException(e, stackTrace);
+      _error = appError.message;
+      _errorType = appError.appErrorType;
       notifyListeners();
       return false;
     }
@@ -86,9 +105,12 @@ class MovementViewModel extends foundation.ChangeNotifier {
       await _dataService.deleteMovement(id);
       await loadMovements();
       print('✅ MovementViewModel: Movimiento eliminado exitosamente');
+      _errorType = null;
       return true;
     } catch (e, stackTrace) {
-      _error = AppError.fromException(e, stackTrace).message;
+      final appError = AppError.fromException(e, stackTrace);
+      _error = appError.message;
+      _errorType = appError.appErrorType;
       notifyListeners();
       return false;
     }
@@ -164,11 +186,45 @@ class MovementViewModel extends foundation.ChangeNotifier {
 
   void clearError() {
     _error = null;
+    _errorType = null;
     notifyListeners();
   }
 
   void clearSelectedMovement() {
     _selectedMovement = null;
     notifyListeners();
+  }
+
+  Future<void> loadInitialMovements() async {
+    _movements = [];
+    _offset = 0;
+    _hasMore = true;
+    await loadMoreMovements();
+  }
+
+  Future<void> loadMoreMovements() async {
+    if (_isLoadingMore || !_hasMore) return;
+    _isLoadingMore = true;
+    notifyListeners();
+    try {
+      final newMovements = await _dataService.getAllMovements(offset: _offset, limit: _limit);
+      if (newMovements.length < _limit) {
+        _hasMore = false;
+      }
+      // Filtrar duplicados por id
+      final existingIds = _movements.map((m) => m.id).toSet();
+      final uniqueNewMovements = newMovements.where((m) => !existingIds.contains(m.id)).toList();
+      _movements.addAll(uniqueNewMovements);
+      _offset += uniqueNewMovements.length;
+      await _loadMovementStats();
+      _errorType = null;
+    } catch (e, stackTrace) {
+      final appError = AppError.fromException(e, stackTrace);
+      _error = appError.message;
+      _errorType = appError.appErrorType;
+    } finally {
+      _isLoadingMore = false;
+      notifyListeners();
+    }
   }
 } 

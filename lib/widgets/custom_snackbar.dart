@@ -193,7 +193,7 @@ class CustomErrorDialog {
             Expanded(
               child: Text(
                 title,
-                style: GoogleFonts.inter(
+                style: GoogleFonts.poppins(
                   color: Colors.black,
                   fontWeight: FontWeight.bold,
                   fontSize: 18,
@@ -204,7 +204,7 @@ class CustomErrorDialog {
         ),
         content: Text(
           message,
-          style: GoogleFonts.inter(
+          style: GoogleFonts.poppins(
             color: Colors.black87,
             fontSize: 14,
           ),
@@ -214,7 +214,7 @@ class CustomErrorDialog {
             onPressed: () => Navigator.of(context).pop(),
             child: Text(
               'Cancelar',
-              style: GoogleFonts.inter(
+              style: GoogleFonts.poppins(
                 color: Colors.black54,
                 fontWeight: FontWeight.w500,
               ),
@@ -235,7 +235,7 @@ class CustomErrorDialog {
               ),
               child: Text(
                 'Reintentar',
-                style: GoogleFonts.inter(
+                style: GoogleFonts.poppins(
                   fontWeight: FontWeight.bold,
                 ),
               ),

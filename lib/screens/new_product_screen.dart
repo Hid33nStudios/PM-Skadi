@@ -6,6 +6,7 @@ import '../models/product.dart';
 import '../models/category.dart';
 import '../services/auth_service.dart';
 import '../utils/error_handler.dart';
+import '../utils/error_cases.dart';
 
 class NewProductScreen extends StatefulWidget {
   const NewProductScreen({super.key});
@@ -56,7 +57,7 @@ class _NewProductScreenState extends State<NewProductScreen> {
       });
     } catch (e) {
       if (mounted) {
-        context.showError(e);
+        showAppError(context, AppErrorType.categoriaNoEncontrada);
       }
     } finally {
       if (mounted) {
@@ -82,7 +83,7 @@ class _NewProductScreenState extends State<NewProductScreen> {
     try {
       final userId = context.read<AuthService>().currentUser?.uid;
       if (userId == null) {
-        context.showError('No hay usuario autenticado');
+        showAppError(context, AppErrorType.autenticacion);
         return;
       }
 
@@ -111,7 +112,7 @@ class _NewProductScreenState extends State<NewProductScreen> {
       }
     } catch (e) {
       if (mounted) {
-        context.showError(e);
+        showAppError(context, AppErrorType.errorAlSubirDatos);
       }
     } finally {
       if (mounted) {

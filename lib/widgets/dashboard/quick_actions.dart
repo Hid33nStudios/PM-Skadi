@@ -2,151 +2,427 @@ import 'package:flutter/material.dart';
 import 'dashboard_card.dart';
 import 'barcode_quick_action.dart';
 import '../../theme/responsive.dart';
+import '../../router/app_router.dart';
 
 class QuickActions extends StatelessWidget {
-  const QuickActions({super.key});
+  final Function(int)? onNavigateToIndex;
+  
+  const QuickActions({
+    super.key,
+    this.onNavigateToIndex,
+  });
 
   @override
   Widget build(BuildContext context) {
     return DashboardCard(
       title: 'Acciones Rápidas',
       icon: Icons.flash_on,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          if (constraints.maxWidth < 600) {
-            return Column(
-              children: [
-                if (Responsive.isMobile(context))
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    child: BarcodeQuickAction(),
-                  ),
-                _buildActionRow(context, [
-                  _buildActionButton(
-                    context,
-                    'Nueva Venta',
-                    Icons.add_shopping_cart,
-                    Colors.green,
-                    () => Navigator.pushNamed(context, '/add-sale'),
-                  ),
-                  _buildActionButton(
-                    context,
-                    'Nuevo Producto',
-                    Icons.add_box,
-                    Colors.blue,
-                    () => Navigator.pushNamed(context, '/add-product'),
-                  ),
-                ]),
-                const SizedBox(height: 16),
-                _buildActionRow(context, [
-                  _buildActionButton(
-                    context,
-                    'Ver Productos',
-                    Icons.inventory,
-                    Colors.orange,
-                    () => Navigator.pushNamed(context, '/products'),
-                  ),
-                  _buildActionButton(
-                    context,
-                    'Ver Ventas',
-                    Icons.receipt_long,
-                    Colors.purple,
-                    () => Navigator.pushNamed(context, '/sales'),
-                  ),
-                ]),
-              ],
-            );
-          }
-          
-          return Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildActionButton(
+      iconColor: Colors.amber,
+      child: _buildResponsiveLayout(context),
+    );
+  }
+
+  /// Layout responsive para las acciones rápidas
+  Widget _buildResponsiveLayout(BuildContext context) {
+    if (Responsive.isMobile(context)) {
+      return _buildMobileLayout(context);
+    } else if (Responsive.isTablet(context)) {
+      return _buildTabletLayout(context);
+    } else {
+      return _buildDesktopLayout(context);
+    }
+  }
+
+  /// Layout para móvil mejorado
+  Widget _buildMobileLayout(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Escáner de código de barras mejorado
+        Container(
+          margin: EdgeInsets.only(bottom: 2),
+          child: _buildEnhancedBarcodeAction(context),
+        ),
+        
+        // Acciones en grid mejorado
+        _buildEnhancedActionGrid(context, 2),
+      ],
+    );
+  }
+
+  /// Layout para tablet mejorado
+  Widget _buildTabletLayout(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Primera fila: 3 acciones principales
+        Row(
+          children: [
+            Expanded(
+              child: _buildModernActionButton(
                 context,
                 'Nueva Venta',
                 Icons.add_shopping_cart,
                 Colors.green,
-                () => Navigator.pushNamed(context, '/add-sale'),
+                () => context.goToAddSale(),
+                isPrimary: true,
               ),
-              _buildActionButton(
+            ),
+            SizedBox(width: Responsive.getResponsiveSpacing(context) / 3),
+            Expanded(
+              child: _buildModernActionButton(
                 context,
                 'Nuevo Producto',
                 Icons.add_box,
                 Colors.blue,
-                () => Navigator.pushNamed(context, '/add-product'),
+                () => context.goToAddProduct(),
+                isPrimary: true,
               ),
-              _buildActionButton(
+            ),
+            SizedBox(width: Responsive.getResponsiveSpacing(context) / 3),
+            Expanded(
+              child: _buildModernActionButton(
+                context,
+                'Añadir Categoría',
+                Icons.category,
+                Colors.amber,
+                () => context.goToAddCategory(),
+                isPrimary: true,
+              ),
+            ),
+          ],
+        ),
+        
+        SizedBox(height: Responsive.getResponsiveSpacing(context) / 2),
+        
+        // Segunda fila: 3 acciones secundarias
+        Row(
+          children: [
+            Expanded(
+              child: _buildModernActionButton(
+                context,
+                'Ver Movimientos',
+                Icons.compare_arrows,
+                Colors.teal,
+                () => context.goToMovements(),
+              ),
+            ),
+            SizedBox(width: Responsive.getResponsiveSpacing(context) / 3),
+            Expanded(
+              child: _buildModernActionButton(
                 context,
                 'Ver Productos',
                 Icons.inventory,
                 Colors.orange,
-                () => Navigator.pushNamed(context, '/products'),
+                () => context.goToProducts(),
               ),
-              _buildActionButton(
+            ),
+            SizedBox(width: Responsive.getResponsiveSpacing(context) / 3),
+            Expanded(
+              child: _buildModernActionButton(
                 context,
                 'Ver Ventas',
                 Icons.receipt_long,
                 Colors.purple,
-                () => Navigator.pushNamed(context, '/sales'),
+                () => context.goToSales(),
               ),
-            ],
-          );
-        },
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// Layout para desktop mejorado
+  Widget _buildDesktopLayout(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      padding: const EdgeInsets.all(8),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          // Primera fila: 3 acciones principales
+          Expanded(
+            child: Row(
+              children: [
+                Expanded(
+                  child: _buildPremiumActionButton(
+                    context,
+                    'Nueva Venta',
+                    Icons.add_shopping_cart,
+                    Colors.green,
+                    () => context.goToAddSale(),
+                    isPrimary: true,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _buildPremiumActionButton(
+                    context,
+                    'Nuevo Producto',
+                    Icons.add_box,
+                    Colors.blue,
+                    () => context.goToAddProduct(),
+                    isPrimary: true,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _buildPremiumActionButton(
+                    context,
+                    'Añadir Categoría',
+                    Icons.category,
+                    Colors.amber,
+                    () => context.goToAddCategory(),
+                    isPrimary: true,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          const SizedBox(height: 8),
+          
+          // Segunda fila: 3 acciones secundarias
+          Expanded(
+            child: Row(
+              children: [
+                Expanded(
+                  child: _buildPremiumActionButton(
+                    context,
+                    'Ver Movimientos',
+                    Icons.compare_arrows,
+                    Colors.teal,
+                    () => context.goToMovements(),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _buildPremiumActionButton(
+                    context,
+                    'Ver Productos',
+                    Icons.inventory,
+                    Colors.orange,
+                    () => context.goToProducts(),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _buildPremiumActionButton(
+                    context,
+                    'Ver Ventas',
+                    Icons.receipt_long,
+                    Colors.purple,
+                    () => context.goToSales(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildActionRow(BuildContext context, List<Widget> actions) {
-    return Row(
-      children: actions.map((action) {
-        final isLast = action == actions.last;
-        return Expanded(
-          child: Row(
-            children: [
-              Expanded(child: action),
-              if (!isLast) const SizedBox(width: 16),
-            ],
-          ),
-        );
-      }).toList(),
+  /// Grid de acciones mejorado para móvil
+  Widget _buildEnhancedActionGrid(BuildContext context, int columns) {
+    final actions = [
+      _buildModernActionButton(
+        context,
+        'Nueva Venta',
+        Icons.add_shopping_cart,
+        Colors.green,
+        () => context.goToAddSale(),
+        isPrimary: true,
+      ),
+      _buildModernActionButton(
+        context,
+        'Nuevo Producto',
+        Icons.add_box,
+        Colors.blue,
+        () => context.goToAddProduct(),
+        isPrimary: true,
+      ),
+      _buildModernActionButton(
+        context,
+        'Añadir Categoría',
+        Icons.category,
+        Colors.amber,
+        () => context.goToAddCategory(),
+        isPrimary: true,
+      ),
+      _buildModernActionButton(
+        context,
+        'Ver Movimientos',
+        Icons.compare_arrows,
+        Colors.teal,
+        () => context.goToMovements(),
+      ),
+      _buildModernActionButton(
+        context,
+        'Ver Productos',
+        Icons.inventory,
+        Colors.orange,
+        () => context.goToProducts(),
+      ),
+      _buildModernActionButton(
+        context,
+        'Ver Ventas',
+        Icons.receipt_long,
+        Colors.purple,
+        () => context.goToSales(),
+      ),
+    ];
+
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: columns,
+        mainAxisSpacing: 3,
+        crossAxisSpacing: 3,
+        childAspectRatio: Responsive.isMobile(context) ? 1.8 : 1.0,
+      ),
+      itemCount: actions.length,
+      itemBuilder: (context, index) => actions[index],
     );
   }
 
-  Widget _buildActionButton(
+  /// Botón de acción moderno para móvil y tablet
+  Widget _buildModernActionButton(
     BuildContext context,
     String label,
     IconData icon,
     Color color,
-    VoidCallback onPressed,
-  ) {
-    return InkWell(
-      onTap: onPressed,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
-        decoration: BoxDecoration(
-          border: Border.all(color: color.withOpacity(0.3), width: 1),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              color: color,
-              size: 32,
+    VoidCallback onPressed, {
+    bool isPrimary = false,
+  }) {
+    final isMobile = Responsive.isMobile(context);
+    
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: EdgeInsets.all(isMobile ? 3 : 12),
+          decoration: BoxDecoration(
+            color: isPrimary ? color.withValues(alpha: 0.15) : Colors.white,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: isPrimary ? color.withValues(alpha: 0.3) : Colors.grey.shade200,
+              width: isPrimary ? 1 : 1,
             ),
-            const SizedBox(height: 8),
-            Text(
-              label,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Colors.white70,
-                fontWeight: FontWeight.w500,
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: EdgeInsets.all(isMobile ? 3 : 8),
+                decoration: BoxDecoration(
+                  color: isPrimary ? color.withValues(alpha: 0.15) : Colors.white,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  icon,
+                  color: isPrimary ? color : color.withValues(alpha: 0.7),
+                  size: isMobile ? 14 : 24,
+                ),
               ),
-              textAlign: TextAlign.center,
-            ),
-          ],
+              SizedBox(height: isMobile ? 2 : 6),
+              Text(
+                label,
+                style: TextStyle(
+                  color: isPrimary ? color.withValues(alpha: 0.8) : Colors.grey.shade700,
+                  fontSize: isMobile ? 8 : Responsive.getResponsiveFontSize(context, 10),
+                  fontWeight: isPrimary ? FontWeight.bold : FontWeight.w600,
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
         ),
+      ),
+    );
+  }
+
+  /// Botón de acción premium para desktop
+  Widget _buildPremiumActionButton(
+    BuildContext context,
+    String label,
+    IconData icon,
+    Color color,
+    VoidCallback onTap, {
+    bool isPrimary = false,
+  }) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: double.infinity,
+          height: double.infinity,
+          decoration: BoxDecoration(
+            color: isPrimary ? color.withValues(alpha: 0.08) : Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isPrimary ? color.withValues(alpha: 0.3) : Colors.grey.shade200,
+              width: isPrimary ? 2 : 1,
+            ),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: isPrimary ? color.withValues(alpha: 0.2) : Colors.white,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  icon,
+                  color: isPrimary ? color : color.withValues(alpha: 0.7),
+                  size: 28,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  color: isPrimary ? color.withValues(alpha: 0.8) : Colors.grey.shade700,
+                  fontSize: 12,
+                  fontWeight: isPrimary ? FontWeight.bold : FontWeight.w600,
+                  letterSpacing: 0.3,
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Acción de escáner mejorada
+  Widget _buildEnhancedBarcodeAction(BuildContext context) {
+    return Container(
+      height: 35,
+      decoration: BoxDecoration(
+        color: Colors.amber.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: Colors.amber.withValues(alpha: 0.3),
+          width: 1,
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(6),
+        child: BarcodeQuickAction(),
       ),
     );
   }

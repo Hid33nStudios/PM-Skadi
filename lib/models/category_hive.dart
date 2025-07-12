@@ -37,7 +37,7 @@ class CategoryHive extends HiveObject {
       id: category.id,
       name: category.name,
       description: category.description,
-      color: category.color,
+      color: null, // El modelo Category no tiene color
       createdAt: category.createdAt,
       updatedAt: category.updatedAt,
     );
