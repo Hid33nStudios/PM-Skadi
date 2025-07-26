@@ -1,6 +1,7 @@
 // error_cases.dart
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 
 /// Enum de tipos de error extendido para toda la app
 enum AppErrorType {
@@ -249,7 +250,11 @@ String getErrorMessage(AppErrorType type, {String? detalle}) {
     case AppErrorType.seleccionInvalida:
       return 'Selección inválida.';
     case AppErrorType.duplicado:
-      return 'El registro ya existe.';
+      // Si el detalle es nulo, mostrar mensaje personalizado para categorías
+      if (detalle == null || detalle.isEmpty) {
+        return 'Esta categoría ya existe';
+      }
+      return detalle;
     case AppErrorType.formato:
       return 'Formato incorrecto.';
 
@@ -287,36 +292,14 @@ String getErrorMessage(AppErrorType type, {String? detalle}) {
 /// Función para mostrar el error al usuario según la plataforma
 void showAppError(BuildContext context, AppErrorType type, {String? detalle, Duration? duration}) {
   final mensaje = getErrorMessage(type, detalle: detalle);
-  if (kIsWeb) {
-    // En web: usar MaterialBanner (más visible y persistente)
-    ScaffoldMessenger.of(context).clearMaterialBanners();
-    ScaffoldMessenger.of(context).showMaterialBanner(
-      MaterialBanner(
-        content: Text(mensaje),
-        backgroundColor: Colors.red.shade50,
-        leading: const Icon(Icons.error_outline, color: Colors.red),
-        actions: [
-          TextButton(
-            onPressed: () => ScaffoldMessenger.of(context).clearMaterialBanners(),
-            child: const Text('Cerrar'),
-          ),
-        ],
-      ),
-    );
-  } else {
-    // En móvil: usar SnackBar
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(mensaje),
-        backgroundColor: Colors.red.shade700,
-        duration: duration ?? const Duration(seconds: 4),
-        behavior: SnackBarBehavior.floating,
-        action: SnackBarAction(
-          label: 'Cerrar',
-          textColor: Colors.white,
-          onPressed: () {},
-        ),
-      ),
-    );
-  }
+  
+  // Usar Fluttertoast para todas las plataformas
+  Fluttertoast.showToast(
+    msg: mensaje,
+    toastLength: duration != null && duration.inSeconds > 4 ? Toast.LENGTH_LONG : Toast.LENGTH_SHORT,
+    gravity: ToastGravity.BOTTOM,
+    backgroundColor: Colors.red.shade700,
+    textColor: Colors.white,
+    fontSize: 16.0,
+  );
 } 

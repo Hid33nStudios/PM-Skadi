@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../models/sale.dart';
 import '../../viewmodels/dashboard_viewmodel.dart';
 import 'dashboard_card.dart';
+import '../../utils/validators.dart';
 
 class SalesSummary extends StatelessWidget {
   final DashboardViewModel dashboardViewModel;
@@ -54,41 +55,97 @@ class _SalesSummaryContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final todaySales = _calculateTodaySales(sales);
     final weekSales = _calculateWeekSales(sales);
+    final totalProductsSold = _calculateTotalProductsSold(sales);
+    final uniqueProductsSold = _calculateUniqueProductsSold(sales);
+    final avgTicket = sales.isNotEmpty ? totalRevenue / sales.length : 0.0;
     final currencyFormat = NumberFormat.currency(locale: 'es_MX', symbol: '\$');
 
-    return DashboardCard(
-      title: 'Resumen de Ventas',
-      icon: Icons.bar_chart,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          if (constraints.maxWidth < 600) {
-            return SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _buildSalesMetric(context, 'Hoy', todaySales, currencyFormat, Colors.blue),
-                  const SizedBox(height: 12),
-                  _buildSalesMetric(context, 'Semana', weekSales, currencyFormat, Colors.orange),
-                  const SizedBox(height: 12),
-                  _buildSalesMetric(context, 'Total', totalRevenue, currencyFormat, Colors.green),
-                ],
-              ),
-            );
-          }
-          return Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
+    final isMobile = MediaQuery.of(context).size.width < 600;
+    if (isMobile) {
+      return SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildSalesMetric(context, 'Hoy', todaySales, Colors.blue),
+            const SizedBox(height: 12),
+            _buildSalesMetric(context, 'Semana', weekSales, Colors.orange),
+            const SizedBox(height: 12),
+            _buildSalesMetric(context, 'Total', totalRevenue, Colors.green),
+            const SizedBox(height: 12),
+            _buildExtraMetric(context, 'Productos Vendidos', formatNumber(totalProductsSold), Colors.purple),
+            const SizedBox(height: 12),
+            _buildExtraMetric(context, 'Productos Únicos', formatNumber(uniqueProductsSold), Colors.teal),
+            const SizedBox(height: 12),
+            _buildSalesMetric(context, 'Ticket Promedio', avgTicket, Colors.indigo),
+          ],
+        ),
+      );
+    }
+    // Desktop/web: dos filas, primera con HOY y SEMANA, segunda con el resto
+    final metricHoy = _MinimalMetric(value: formatPrice(todaySales), label: 'Hoy', color: Colors.blue);
+    final metricSemana = _MinimalMetric(value: formatPrice(weekSales), label: 'Semana', color: Colors.orange);
+    final metricTotal = _MinimalMetric(value: formatPrice(totalRevenue), label: 'Total', color: Colors.green);
+    final metricVendidos = _MinimalMetric(value: totalProductsSold.toString(), label: 'Vendidos', color: Colors.purple);
+    final metricUnicos = _MinimalMetric(value: uniqueProductsSold.toString(), label: 'Únicos', color: Colors.teal);
+    final metricTicket = _MinimalMetric(value: formatPrice(avgTicket), label: 'Ticket Promedio', color: Colors.indigo);
+
+    return Container(
+      width: double.infinity,
+      height: 160,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              Expanded(child: _buildSalesMetric(context, 'Hoy', todaySales, currencyFormat, Colors.blue)),
-              Expanded(child: _buildSalesMetric(context, 'Semana', weekSales, currencyFormat, Colors.orange)),
-              Expanded(child: _buildSalesMetric(context, 'Total', totalRevenue, currencyFormat, Colors.green)),
+              _MetricBlock(metric: metricHoy),
+              _MetricBlock(metric: metricSemana),
             ],
-          );
-        },
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _MetricBlock(metric: metricTotal),
+              _MetricBlock(metric: metricVendidos),
+              _MetricBlock(metric: metricUnicos),
+              _MetricBlock(metric: metricTicket),
+            ],
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildSalesMetric(BuildContext context, String title, double value, NumberFormat format, Color color) {
+  Widget _buildSalesMetric(BuildContext context, String label, num value, Color color) {
+    final isMoney = label == 'Hoy' || label == 'Semana' || label == 'Total' || label == 'Ticket Promedio';
+    return Card(
+      color: color.withOpacity(0.1),
+      child: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              isMoney ? '[' + formatPrice(value) : formatNumber(value),
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: color,
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildExtraMetric(BuildContext context, String title, String value, Color color) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -99,7 +156,7 @@ class _SalesSummaryContent extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Text(
-          format.format(value),
+          value,
           style: Theme.of(context).textTheme.headlineSmall?.copyWith(
             color: color,
             fontWeight: FontWeight.bold,
@@ -114,7 +171,7 @@ class _SalesSummaryContent extends StatelessWidget {
     final today = DateTime(now.year, now.month, now.day);
     return sales
         .where((s) => s.date.isAfter(today))
-        .fold(0.0, (sum, item) => sum + item.amount);
+        .fold(0.0, (sum, item) => sum + item.total);
   }
 
   double _calculateWeekSales(List<Sale> sales) {
@@ -122,7 +179,31 @@ class _SalesSummaryContent extends StatelessWidget {
     final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
     return sales
         .where((s) => s.date.isAfter(startOfWeek))
-        .fold(0.0, (sum, item) => sum + item.amount);
+        .fold(0.0, (sum, item) => sum + item.total);
+  }
+
+  int _calculateTotalProductsSold(List<Sale> sales) {
+    int total = 0;
+    for (final sale in sales) {
+      if (sale.items != null && sale.items.isNotEmpty) {
+        for (final item in sale.items) {
+          total += item.quantity;
+        }
+      }
+    }
+    return total;
+  }
+
+  int _calculateUniqueProductsSold(List<Sale> sales) {
+    final Set<String> uniqueIds = {};
+    for (final sale in sales) {
+      if (sale.items != null && sale.items.isNotEmpty) {
+        for (final item in sale.items) {
+          uniqueIds.add(item.productId);
+        }
+      }
+    }
+    return uniqueIds.length;
   }
 
   /// Layout para desktop
@@ -189,7 +270,7 @@ class _SalesSummaryContent extends StatelessWidget {
                 child: _buildEnhancedStatCard(
                   context,
                   'Ventas Totales',
-                  '\$${dashboardViewModel.dashboardData?.totalRevenue.toStringAsFixed(2) ?? '0.00'}',
+                  '[${formatPrice(dashboardViewModel.dashboardData?.totalRevenue ?? 0)}',
                   Icons.attach_money,
                   Colors.green,
                   '+12.5%',
@@ -439,5 +520,75 @@ class _MetricSkeleton extends StatelessWidget {
       );
     }
     return skeleton;
+  }
+} 
+
+class _MinimalMetric extends StatelessWidget {
+  final String value;
+  final String label;
+  final Color color;
+  const _MinimalMetric({required this.value, required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 28,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            color: Colors.grey.shade600,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
+} 
+
+class _MetricBlock extends StatelessWidget {
+  final _MinimalMetric metric;
+  const _MetricBlock({required this.metric});
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            metric.value,
+            style: TextStyle(
+              fontSize: 26,
+              fontWeight: FontWeight.bold,
+              color: metric.color,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            metric.label,
+            style: const TextStyle(
+              fontSize: 13,
+              color: Colors.grey,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
   }
 } 

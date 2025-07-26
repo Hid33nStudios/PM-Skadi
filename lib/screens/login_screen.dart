@@ -23,6 +23,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePassword = true;
   bool _isLoading = false;
   bool _rememberUser = false;
+  // String? _loginError; // ELIMINADO
 
   @override
   void dispose() {
@@ -33,7 +34,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _signIn() async {
     if (!_formKey.currentState!.validate()) return;
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      // _loginError = null; // ELIMINADO
+    });
     try {
       final authViewModel = context.read<AuthViewModel>();
       final success = await authViewModel.signIn(
@@ -48,18 +52,23 @@ class _LoginScreenState extends State<LoginScreen> {
         context.goToDashboard();
       }
     } catch (e) {
-      if (mounted) {
-        final authViewModel = context.read<AuthViewModel>();
-        final errorType = authViewModel.errorType ?? AppErrorType.desconocido;
-        showAppError(context, errorType);
-      }
+      // El error se maneja en el ViewModel y se muestra en el build
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
+  void _clearError() {
+    final authViewModel = context.read<AuthViewModel>();
+    // Usar método público para limpiar el error
+    if (authViewModel.errorType != null) {
+      authViewModel.clearError();
+    }
+  }
+
   /// Construye el formulario de login responsive
   Widget _buildLoginForm(ThemeData theme) {
+    final authViewModel = context.watch<AuthViewModel>();
     return Form(
       key: _formKey,
       child: Column(
@@ -82,6 +91,7 @@ class _LoginScreenState extends State<LoginScreen> {
               validator: (value) => value == null || value.trim().isEmpty 
                   ? 'Por favor, ingresa tu email' 
                   : null,
+              onChanged: (_) => _clearError(), // Limpiar error al escribir
             ),
           ),
           
@@ -108,6 +118,7 @@ class _LoginScreenState extends State<LoginScreen> {
               validator: (value) => value == null || value.trim().isEmpty 
                   ? 'Por favor, ingresa tu contraseña' 
                   : null,
+              onChanged: (_) => _clearError(), // Limpiar error al escribir
             ),
           ),
           
@@ -131,7 +142,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   style: TextStyle(
                     color: Responsive.isMobile(context) 
                         ? Colors.white 
-                        : theme.colorScheme.onSurface.withValues(alpha: 0.8),
+                        : theme.colorScheme.onSurface.withAlpha(200),
                     fontSize: Responsive.getResponsiveFontSize(context, 14),
                   ),
                 ),
@@ -153,6 +164,31 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           
           SizedBox(height: Responsive.getResponsiveSpacing(context) * 2),
+
+          // Mostrar error debajo del botón si existe
+          if (authViewModel.errorType != null) ...[
+            Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.red.shade200),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.error_outline, color: Colors.red, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      getErrorMessage(authViewModel.errorType!),
+                      style: const TextStyle(color: Colors.red, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           
           // Botón de iniciar sesión
           ElevatedButton.icon(
@@ -192,18 +228,18 @@ class _LoginScreenState extends State<LoginScreen> {
                 style: TextStyle(
                   color: Responsive.isMobile(context) 
                       ? Colors.white 
-                      : theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                      : theme.colorScheme.onSurface.withAlpha(180),
                   fontSize: Responsive.getResponsiveFontSize(context, 14),
                 ),
               ),
               TextButton(
                 onPressed: () => context.goToRegister(),
                 child: Text(
-                  'Regístrate aquí',
+                  'Regístrate',
                   style: TextStyle(
                     color: theme.primaryColor,
-                    fontSize: Responsive.getResponsiveFontSize(context, 14),
                     fontWeight: FontWeight.bold,
+                    fontSize: Responsive.getResponsiveFontSize(context, 14),
                   ),
                 ),
               ),
@@ -347,7 +383,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 children: [
                   // Logo grande
                   Image.asset(
-                    'assets/images/logo.webp',
+                    'assets/images/logs.webp',
                     height: isLargeDesktop ? 180 : 140,
                   ),
                   

@@ -11,6 +11,8 @@ import 'recent_activity.dart';
 import 'stock_status.dart';
 import 'sales_summary.dart';
 import '../skeleton_loading.dart';
+import '../../utils/validators.dart';
+import '../../config/performance_config.dart';
 
 class ModernDashboard extends StatefulWidget {
   const ModernDashboard({super.key});
@@ -29,12 +31,28 @@ class _ModernDashboardState extends State<ModernDashboard>
   @override
   void initState() {
     super.initState();
+    
+    // OPTIMIZACIÓN: Verificar si las animaciones están habilitadas
+    final enableAnimations = PerformanceConfig.getEnableAnimations();
+    print('🎬 ModernDashboard: Animaciones ${enableAnimations ? "habilitadas" : "deshabilitadas"}');
+    
+    if (enableAnimations) {
+      _initializeAnimations();
+    } else {
+      // OPTIMIZACIÓN: Sin animaciones para hardware antiguo
+      print('⚡ ModernDashboard: Usando modo sin animaciones para mejor performance');
+    }
+  }
+
+  // OPTIMIZACIÓN: Inicializar animaciones solo si están habilitadas
+  void _initializeAnimations() {
+    // OPTIMIZACIÓN: Animaciones más ligeras para mejor performance
     _fadeController = AnimationController(
-      duration: const Duration(milliseconds: 800),
+      duration: const Duration(milliseconds: 400), // Reducir duración
       vsync: this,
     );
     _slideController = AnimationController(
-      duration: const Duration(milliseconds: 600),
+      duration: const Duration(milliseconds: 300), // Reducir duración
       vsync: this,
     );
 
@@ -43,54 +61,42 @@ class _ModernDashboardState extends State<ModernDashboard>
       end: 1.0,
     ).animate(CurvedAnimation(
       parent: _fadeController,
-      curve: Curves.easeInOut,
+      curve: Curves.easeOut, // Curva más simple
     ));
 
     _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.3),
+      begin: const Offset(0, 0.2), // Reducir distancia
       end: Offset.zero,
     ).animate(CurvedAnimation(
       parent: _slideController,
-      curve: Curves.easeOutCubic,
+      curve: Curves.easeOut, // Curva más simple
     ));
 
-    // Iniciar animaciones con delay para lazy loading
-    Future.delayed(const Duration(milliseconds: 300), () {
-      if (mounted) {
-        _fadeController.forward();
-        _slideController.forward();
-      }
-    });
+    // OPTIMIZACIÓN: Iniciar animaciones inmediatamente sin delay
+    if (mounted) {
+      _fadeController.forward();
+      _slideController.forward();
+    }
   }
 
   @override
   void dispose() {
-    _fadeController.dispose();
-    _slideController.dispose();
+    // OPTIMIZACIÓN: Solo dispose si las animaciones están habilitadas
+    if (PerformanceConfig.getEnableAnimations()) {
+      _fadeController.dispose();
+      _slideController.dispose();
+    }
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<DashboardViewModel>(
-      builder: (context, viewModel, _) {
-        if (viewModel.isLoading) {
-          return _buildSkeletonLoading();
-        }
-
-        if (viewModel.error != null) {
-          return _buildErrorState(viewModel.error!);
-        }
-
-        return FadeTransition(
-          opacity: _fadeAnimation,
-          child: SlideTransition(
-            position: _slideAnimation,
-            child: _buildDashboardContent(),
-          ),
-        );
-      },
-    );
+    // OPTIMIZACIÓN: Usar modo sin animaciones si están deshabilitadas
+    if (!PerformanceConfig.getEnableAnimations()) {
+      return _buildStaticDashboard();
+    }
+    
+    return _buildAnimatedDashboard();
   }
 
   Widget _buildSkeletonLoading() {
@@ -244,6 +250,61 @@ class _ModernDashboardState extends State<ModernDashboard>
     );
   }
 
+  // OPTIMIZACIÓN: Dashboard estático para hardware antiguo
+  Widget _buildStaticDashboard() {
+    return Consumer<DashboardViewModel>(
+      builder: (context, viewModel, _) {
+        if (viewModel.isLoading) {
+          return _buildSkeletonLoading();
+        }
+
+        if (viewModel.error != null) {
+          return _buildErrorState(viewModel.error!);
+        }
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildStatsCards(),
+              const SizedBox(height: 24),
+              _buildDashboardGrid(context),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // Dashboard con animaciones para hardware moderno
+  Widget _buildAnimatedDashboard() {
+    return Consumer<DashboardViewModel>(
+      builder: (context, viewModel, _) {
+        if (viewModel.isLoading) {
+          return _buildSkeletonLoading();
+        }
+
+        if (viewModel.error != null) {
+          return _buildErrorState(viewModel.error!);
+        }
+
+        return AnimatedBuilder(
+          animation: Listenable.merge([_fadeController, _slideController]),
+          builder: (context, child) {
+            return FadeTransition(
+              opacity: _fadeAnimation,
+              child: SlideTransition(
+                position: _slideAnimation,
+                child: _buildDashboardContent(),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   Widget _buildDashboardContent() {
     final isMobile = Responsive.isMobile(context);
     final padding = isMobile ? 16.0 : 24.0;
@@ -260,7 +321,7 @@ class _ModernDashboardState extends State<ModernDashboard>
           SizedBox(height: spacing),
           _buildQuickActions(),
           SizedBox(height: spacing),
-          _buildDashboardGrid(),
+          _buildDashboardGrid(context),
         ],
       ),
     );
@@ -329,7 +390,7 @@ class _ModernDashboardState extends State<ModernDashboard>
                       icon: Icons.attach_money,
                       iconColor: Colors.blue,
                       title: 'Ingresos',
-                      value: '\$${data.totalRevenue.toStringAsFixed(2)}',
+                      value: formatPrice(data.totalRevenue, symbol: 'ARS'),
                       subtitle: 'Total',
                     ),
                   ),
@@ -377,7 +438,7 @@ class _ModernDashboardState extends State<ModernDashboard>
                 icon: Icons.attach_money,
                 iconColor: Colors.blue,
                 title: 'Ingresos',
-                value: '\$${data.totalRevenue.toStringAsFixed(2)}',
+                value: formatPrice(data.totalRevenue, symbol: 'ARS'),
                 subtitle: 'Total acumulado',
               ),
               const SizedBox(width: 24),
@@ -515,73 +576,81 @@ class _ModernDashboardState extends State<ModernDashboard>
     );
   }
 
-  Widget _buildDashboardGrid() {
-    final isMobile = Responsive.isMobile(context);
-    final isTablet = Responsive.isTablet(context);
-    
-    // Ajustar grid según el tamaño de pantalla
-    final crossAxisCount = isMobile ? 1 : isTablet ? 2 : 3;
-    final childAspectRatio = isMobile ? 1.0 : isTablet ? 1.1 : 1.2;
-    final spacing = isMobile ? 16.0 : isTablet ? 20.0 : 24.0;
-    
-    return GridView.count(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: crossAxisCount,
-      childAspectRatio: childAspectRatio,
-      mainAxisSpacing: spacing,
-      crossAxisSpacing: spacing,
-      children: [
-        _buildGridCard(
-          title: 'Ventas de la Semana',
-          icon: Icons.trending_up,
-          iconColor: Colors.green,
-          child: const SalesChart(),
-        ),
-        _buildGridCard(
-          title: 'Distribución por Categoría',
-          icon: Icons.pie_chart,
-          iconColor: Colors.blue,
-          child: const CategoryDistribution(),
-        ),
-        _buildGridCard(
-          title: 'Actividad Reciente',
-          icon: Icons.history,
-          iconColor: Colors.orange,
-          child: const RecentActivity(),
-        ),
-        _buildGridCard(
-          title: 'Productos con Bajo Stock',
-          icon: Icons.warning,
-          iconColor: Colors.red,
-          child: const StockStatus(),
-        ),
-        _buildGridCard(
-          title: 'Resumen de Ventas',
-          icon: Icons.analytics,
-          iconColor: Colors.purple,
-          child: Consumer<DashboardViewModel>(
-            builder: (context, viewModel, _) => SalesSummary(
-              dashboardViewModel: viewModel,
+  Widget _buildDashboardGrid(BuildContext context) {
+    final spacing = 16.0;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isMobile = constraints.maxWidth < 600;
+        final columns = isMobile ? 1 : 3;
+        final cardHeight = 320.0;
+        final children = [
+          _buildGridCard(
+            title: 'Ventas de la Semana',
+            icon: Icons.trending_up,
+            iconColor: Colors.green,
+            child: const SalesChart(),
+          ),
+          _buildGridCard(
+            title: 'Distribución por Categoría',
+            icon: Icons.pie_chart,
+            iconColor: Colors.blue,
+            child: const CategoryDistribution(),
+          ),
+          _buildGridCard(
+            title: 'Actividad Reciente',
+            icon: Icons.history,
+            iconColor: Colors.orange,
+            child: const RecentActivity(),
+          ),
+          _buildGridCard(
+            title: 'Productos con Bajo Stock',
+            icon: Icons.warning,
+            iconColor: Colors.red,
+            child: const StockStatus(),
+          ),
+          Consumer<DashboardViewModel>(
+            builder: (context, vm, _) => _buildGridCard(
+              title: 'Resumen de Ventas',
+              icon: Icons.summarize,
+              iconColor: Colors.purple,
+              child: SalesSummary(dashboardViewModel: vm),
             ),
           ),
-        ),
-        _buildGridCard(
-          title: 'Tendencias',
-          icon: Icons.show_chart,
-          iconColor: Colors.teal,
-          child: const Center(
-            child: Text(
-              'Gráfico de tendencias\n(Próximamente)',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.grey,
-                fontSize: 16,
+          _buildGridCard(
+            title: 'Tendencias',
+            icon: Icons.show_chart,
+            iconColor: Colors.teal,
+            child: const Center(
+              child: Text(
+                'Gráfico de tendencias\n(Próximamente)',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey),
               ),
             ),
           ),
-        ),
-      ],
+        ];
+        if (isMobile) {
+          return SingleChildScrollView(
+            padding: EdgeInsets.all(spacing),
+            child: Column(
+              children: children.map((c) => SizedBox(height: cardHeight, child: c)).toList(),
+            ),
+          );
+        } else {
+          return SingleChildScrollView(
+            padding: EdgeInsets.all(spacing),
+            child: GridView.count(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisCount: columns,
+              mainAxisSpacing: spacing,
+              crossAxisSpacing: spacing,
+              childAspectRatio: 1.5,
+              children: children.map((c) => SizedBox(height: cardHeight, child: c)).toList(),
+            ),
+          );
+        }
+      },
     );
   }
 
@@ -608,8 +677,10 @@ class _ModernDashboardState extends State<ModernDashboard>
           ),
         ],
       ),
+      constraints: const BoxConstraints(minHeight: 220),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.max,
         children: [
           Padding(
             padding: EdgeInsets.all(padding),
@@ -641,12 +712,22 @@ class _ModernDashboardState extends State<ModernDashboard>
               ],
             ),
           ),
-          Expanded(
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(padding, 0, padding, padding),
-              child: child,
+          // Cambiar aquí: solo usar Expanded en desktop/tablet
+          if (!isMobile)
+            Expanded(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(padding, 0, padding, padding),
+                child: child,
+              ),
             ),
-          ),
+          if (isMobile)
+            Padding(
+              padding: EdgeInsets.fromLTRB(padding, 0, padding, padding),
+              child: SizedBox(
+                height: 160,
+                child: child,
+              ),
+            ),
         ],
       ),
     );

@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// Modelo para representar un producto
 class Product {
@@ -53,6 +54,12 @@ class Product {
   }
 
   factory Product.fromMap(Map<String, dynamic> map, String id) {
+    DateTime parseDate(dynamic value) {
+      if (value == null) return DateTime.now();
+      if (value is String) return DateTime.tryParse(value) ?? DateTime.now();
+      if (value is Timestamp) return value.toDate();
+      return DateTime.now();
+    }
     return Product(
       id: id,
       name: map['name'] as String,
@@ -62,8 +69,8 @@ class Product {
       minStock: map['minStock'] as int,
       maxStock: map['maxStock'] as int,
       categoryId: map['categoryId'] as String,
-      createdAt: DateTime.parse(map['createdAt'] as String),
-      updatedAt: DateTime.parse(map['updatedAt'] as String),
+      createdAt: parseDate(map['createdAt']),
+      updatedAt: parseDate(map['updatedAt']),
       imageUrl: map['imageUrl'] as String?,
       barcode: map['barcode'] as String?,
       sku: map['sku'] as String?,

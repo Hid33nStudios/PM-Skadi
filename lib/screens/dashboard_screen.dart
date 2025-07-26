@@ -4,7 +4,7 @@ import '../viewmodels/dashboard_viewmodel.dart';
 import '../viewmodels/sale_viewmodel.dart';
 import '../widgets/dashboard/dashboard_grid.dart';
 import '../widgets/dashboard/modern_dashboard.dart';
-import '../widgets/sync_status_widget.dart';
+// import '../widgets/sync_status_widget.dart'; // Comentado temporalmente
 import '../widgets/responsive_form.dart';
 import '../theme/responsive.dart';
 import '../services/auth_service.dart';
@@ -14,6 +14,8 @@ import '../utils/error_cases.dart';
 import '../viewmodels/auth_viewmodel.dart';
 import '../widgets/app_initializer.dart';
 import '../viewmodels/sync_viewmodel.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../widgets/custom_dialog.dart';
 
 class DashboardScreen extends StatefulWidget {
   final bool showAppBar;
@@ -33,6 +35,7 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
   // Guardar referencias a los ViewModels para evitar acceder al contexto en dispose
   DashboardViewModel? _dashboardViewModel;
   SaleViewModel? _saleViewModel;
+  AuthViewModel? _authViewModel; // Agregar referencia a AuthViewModel
 
   // Nuevo: Para evitar recargas infinitas
   String? _lastUserId;
@@ -46,12 +49,9 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
   @override
   void initState() {
     super.initState();
-    // Solo cargar datos una vez al inicializar
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       _setupViewModels();
       _loadDashboardDataIfNeeded();
-      
-      // Agregar listener para cambios de autenticación
       final authViewModel = context.read<AuthViewModel>();
       authViewModel.addListener(_onAuthStateChanged);
     });
@@ -85,6 +85,9 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
       _saleViewModel = context.read<SaleViewModel>();
       _setupSaleCallback();
     }
+    if (_authViewModel == null) {
+      _authViewModel = context.read<AuthViewModel>();
+    }
   }
   
   void _loadDashboardDataIfNeeded() {
@@ -105,10 +108,14 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
   @override
   void dispose() {
     _clearSaleCallback();
-    // Remover listener de auth
-    if (mounted) {
-      final authViewModel = context.read<AuthViewModel>();
-      authViewModel.removeListener(_onAuthStateChanged);
+    // Remover listener de auth de forma segura usando la referencia guardada
+    try {
+      if (_authViewModel != null) {
+        _authViewModel!.removeListener(_onAuthStateChanged);
+      }
+    } catch (e) {
+      // Ignorar errores de contexto durante dispose
+      print('⚠️ Dashboard: Error al remover listener en dispose: $e');
     }
     super.dispose();
   }
@@ -177,6 +184,7 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
             body: Center(child: CircularProgressIndicator()),
           );
         }
+        // OPTIMIZACIÓN: Usar Consumer3 pero con mejor estructura
         return Consumer3<AuthViewModel, DashboardViewModel, SyncViewModel>(
           builder: (context, authViewModel, dashboardViewModel, syncViewModel, child) {
             // Mostrar loading mientras se verifica autenticación
@@ -258,12 +266,12 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
         ),
       ),
       actions: [
-        // Widget de estado de sincronización responsive
-        if (!Responsive.isDesktop(context))
-          Padding(
-            padding: EdgeInsets.only(right: Responsive.getResponsiveSpacing(context)),
-            child: const SyncStatusWidget(),
-          ),
+        // Widget de estado de sincronización responsive - temporalmente comentado
+        // if (!Responsive.isDesktop(context))
+        //   Padding(
+        //     padding: EdgeInsets.only(right: Responsive.getResponsiveSpacing(context)),
+        //     child: const SyncStatusWidget(),
+        //   ),
         Container(
           margin: const EdgeInsets.only(right: 16),
           child: IconButton(
@@ -317,17 +325,17 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
     );
   }
 
-  /// Sección de estado de sincronización responsive
+  /// Sección de estado de sincronización responsive - temporalmente comentado
   Widget _buildSyncStatusSection() {
     return Container(
       margin: EdgeInsets.only(bottom: Responsive.getResponsiveSpacing(context)),
       child: Column(
         children: [
-          // Widget de estado offline
-          const SyncOfflineIndicator(),
+          // Widget de estado offline - temporalmente comentado
+          // const SyncOfflineIndicator(),
           
-          // Widget de progreso de sincronización
-          const SyncProgressWidget(),
+          // Widget de progreso de sincronización - temporalmente comentado
+          // const SyncProgressWidget(),
         ],
       ),
     );

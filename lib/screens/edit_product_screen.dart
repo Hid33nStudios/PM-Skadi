@@ -113,6 +113,15 @@ class _EditProductScreenState extends State<EditProductScreen> {
     if (!_formKey.currentState!.validate()) return;
     if (_product == null) return;
 
+    // Validar que no exista un producto con el mismo nombre (case-insensitive), excepto el actual
+    final productVM = context.read<ProductViewModel>();
+    final name = _nameController.text.trim();
+    final exists = productVM.products.any((p) => p.id != _product!.id && p.name.trim().toLowerCase() == name.toLowerCase());
+    if (exists) {
+      showAppError(context, AppErrorType.duplicado, detalle: 'Este producto ya existe');
+      return;
+    }
+
     setState(() => _isSaving = true);
 
     try {

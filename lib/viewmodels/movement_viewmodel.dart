@@ -1,12 +1,12 @@
 import 'package:flutter/foundation.dart' as foundation;
 import '../models/movement.dart';
-import '../services/hybrid_data_service.dart';
+import '../services/firestore_data_service.dart';
 import '../services/auth_service.dart';
 import '../utils/error_handler.dart';
 import '../utils/error_cases.dart';
 
 class MovementViewModel extends foundation.ChangeNotifier {
-  final HybridDataService _dataService;
+  final FirestoreDataService _dataService;
   final AuthService _authService;
   
   List<Movement> _movements = [];
@@ -30,7 +30,7 @@ class MovementViewModel extends foundation.ChangeNotifier {
   String? get error => _error;
   bool get hasMore => _hasMore;
   bool get isLoadingMore => _isLoadingMore;
-  HybridDataService get dataService => _dataService;
+  FirestoreDataService get dataService => _dataService;
 
   Future<void> loadMovements() async {
     try {

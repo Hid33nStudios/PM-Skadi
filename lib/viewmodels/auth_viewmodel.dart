@@ -67,10 +67,58 @@ class AuthViewModel extends foundation.ChangeNotifier {
         notifyListeners();
         return false;
       }
+    } on FirebaseAuthException catch (e) {
+      // Manejo explícito de errores de Firebase
+      print('❌ AuthViewModel: FirebaseAuthException - Código: \\${e.code}, Mensaje: \\${e.message}');
+      if (e.code == 'wrong-password') {
+        _error = 'Contraseña incorrecta.';
+        _errorType = AppErrorType.contrasenaIncorrecta;
+      } else if (e.code == 'user-not-found') {
+        _error = 'El usuario no existe.';
+        _errorType = AppErrorType.usuarioNoExiste;
+      } else if (e.code == 'user-disabled') {
+        _error = 'El usuario está deshabilitado.';
+        _errorType = AppErrorType.usuarioDeshabilitado;
+      } else if (e.code == 'too-many-requests') {
+        _error = 'Demasiados intentos fallidos. Intenta más tarde.';
+        _errorType = AppErrorType.cuentaBloqueada;
+      } else if (e.code == 'invalid-email') {
+        _error = 'El formato del email no es válido.';
+        _errorType = AppErrorType.formatoInvalido;
+      } else {
+        _error = 'Error de autenticación. Intenta nuevamente.';
+        _errorType = AppErrorType.autenticacion;
+      }
+      _isLoading = false;
+      notifyListeners();
+      return false;
     } catch (e, stackTrace) {
-      final appError = AppError.fromException(e, stackTrace);
-      _error = appError.message;
-      _errorType = appError.appErrorType;
+      if (e is String) {
+        final msg = e.toLowerCase();
+        if (msg.contains('contraseña')) {
+          _error = e;
+          _errorType = AppErrorType.contrasenaIncorrecta;
+        } else if (msg.contains('usuario') && msg.contains('no se encontró')) {
+          _error = e;
+          _errorType = AppErrorType.usuarioNoExiste;
+        } else if (msg.contains('deshabilitado')) {
+          _error = e;
+          _errorType = AppErrorType.usuarioDeshabilitado;
+        } else if (msg.contains('demasiados intentos')) {
+          _error = e;
+          _errorType = AppErrorType.cuentaBloqueada;
+        } else if (msg.contains('email') && msg.contains('válido')) {
+          _error = e;
+          _errorType = AppErrorType.formatoInvalido;
+        } else {
+          _error = e;
+          _errorType = AppErrorType.autenticacion;
+        }
+      } else {
+        final appError = AppError.fromException(e, stackTrace);
+        _error = appError.message;
+        _errorType = appError.appErrorType ?? AppErrorType.autenticacion;
+      }
       _isLoading = false;
       notifyListeners();
       return false;

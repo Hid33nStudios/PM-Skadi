@@ -281,3 +281,21 @@ class FormValidator {
   /// Verificar si hay errores
   bool get hasErrors => _errors.values.any((error) => error != null);
 } 
+
+String formatPrice(num value, {String symbol = 'ARS'}) {
+  // Si es entero, sin decimales. Si tiene decimales, usa coma.
+  if (value % 1 == 0) {
+    return '${value.toInt()} $symbol';
+  } else {
+    return '${value.toStringAsFixed(2).replaceAll('.', ',')} $symbol';
+  }
+}
+
+String formatNumber(num value) {
+  // Para cantidades, igual criterio pero sin símbolo monetario
+  if (value % 1 == 0) {
+    return value.toInt().toString();
+  } else {
+    return value.toStringAsFixed(2).replaceAll('.', ',');
+  }
+} 

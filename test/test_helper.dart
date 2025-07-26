@@ -224,11 +224,11 @@ class MockFirestoreService extends Mock implements FirestoreService {
 
   @override
   Future<void> addSale(Sale sale) async {
-    if (sale.quantity <= 0) {
-      throw Exception('La cantidad debe ser mayor a cero');
+    if (sale.items.isEmpty) {
+      throw Exception('La venta debe tener al menos un item');
     }
-    if (sale.amount < 0) {
-      throw Exception('El monto no puede ser negativo');
+    if (sale.total < 0) {
+      throw Exception('El total no puede ser negativo');
     }
     _sales.add(sale);
   }
@@ -249,7 +249,7 @@ class MockFirestoreService extends Mock implements FirestoreService {
       (p) => p.id == productId,
       orElse: () => throw Exception('Producto no encontrado'),
     );
-    return _sales.where((s) => s.productId == product.id).toList();
+    return _sales.where((s) => s.items.any((item) => item.productId == product.id)).toList();
   }
 
   @override
@@ -369,23 +369,37 @@ class MockFirestoreService extends Mock implements FirestoreService {
     _sales.addAll([
       Sale(
         id: '1',
-        productId: '1',
-        productName: 'Smartphone',
-        quantity: 1,
-        amount: 999.99,
+        userId: 'test-user-1',
+        customerName: 'Cliente Test 1',
+        total: 999.99,
+        items: [
+          SaleItem(
+            productId: '1',
+            productName: 'Smartphone',
+            quantity: 1,
+            unitPrice: 999.99,
+            subtotal: 999.99,
+          ),
+        ],
         date: DateTime.now(),
         notes: 'Venta al contado',
-        userId: 'test-user-1',
       ),
       Sale(
         id: '2',
-        productId: '2',
-        productName: 'Camiseta',
-        quantity: 2,
-        amount: 59.98,
+        userId: 'test-user-2',
+        customerName: 'Cliente Test 2',
+        total: 59.98,
+        items: [
+          SaleItem(
+            productId: '2',
+            productName: 'Camiseta',
+            quantity: 2,
+            unitPrice: 29.99,
+            subtotal: 59.98,
+          ),
+        ],
         date: DateTime.now(),
         notes: 'Venta con descuento',
-        userId: 'test-user-2',
       ),
     ]);
   }

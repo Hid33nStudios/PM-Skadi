@@ -11,6 +11,7 @@ import 'quick_actions.dart';
 import 'recent_activity.dart';
 import 'stock_status.dart';
 import 'sales_summary.dart';
+import 'performance_test_widget.dart';
 
 class DashboardGrid extends StatelessWidget {
   const DashboardGrid({super.key});
@@ -131,11 +132,9 @@ class DashboardGrid extends StatelessWidget {
                         ],
                       ),
                       SizedBox(height: 16),
-                      Flexible(
-                        child: SizedBox(
-                          height: widgetHeight,
-                          child: _buildSalesChartCard(context),
-                        ),
+                      SizedBox(
+                        height: widgetHeight,
+                        child: _buildSalesChartCard(context),
                       ),
                     ],
                   ),
@@ -167,50 +166,22 @@ class DashboardGrid extends StatelessWidget {
                         ],
                       ),
                       SizedBox(height: 16),
-                      Flexible(
-                        child: SizedBox(
-                          height: widgetHeight,
-                          child: _buildCategoryDistributionCard(context),
-                        ),
+                      SizedBox(
+                        height: widgetHeight,
+                        child: _buildCategoryDistributionCard(context),
                       ),
                     ],
                   ),
                 ),
               ),
               // Actividad Reciente
-              Container(
+              SizedBox(
                 width: widgetWidth,
-                constraints: BoxConstraints(maxHeight: widgetHeight + 120),
-                child: ClipRect(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(Icons.history, color: Colors.orange, size: iconSize),
-                          SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'Actividad Reciente',
-                              style: TextStyle(
-                                fontSize: headerFontSize,
-                                fontWeight: FontWeight.w600,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: 16),
-                      Flexible(
-                        child: SizedBox(
-                          height: widgetHeight,
-                          child: _buildRecentActivityCard(context),
-                        ),
-                      ),
-                    ],
-                  ),
+                child: DashboardCard(
+                  title: 'Actividad Reciente',
+                  icon: Icons.history,
+                  iconColor: Colors.orange,
+                  child: RecentActivity(),
                 ),
               ),
               // Productos con Bajo Stock
@@ -239,11 +210,43 @@ class DashboardGrid extends StatelessWidget {
                         ],
                       ),
                       SizedBox(height: 16),
-                      Flexible(
-                        child: SizedBox(
-                          height: widgetHeight,
-                          child: _buildStockStatusCard(context),
-                        ),
+                      SizedBox(
+                        height: widgetHeight,
+                        child: _buildStockStatusCard(context),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              // Prueba de Performance
+              Container(
+                width: widgetWidth,
+                constraints: BoxConstraints(maxHeight: widgetHeight + 120),
+                child: ClipRect(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.speed, color: Colors.purple, size: iconSize),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Prueba de Performance',
+                              style: TextStyle(
+                                fontSize: headerFontSize,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 16),
+                      SizedBox(
+                        height: widgetHeight,
+                        child: _buildPerformanceTestCard(context),
                       ),
                     ],
                   ),
@@ -305,6 +308,10 @@ class DashboardGrid extends StatelessWidget {
     return StockStatus();
   }
 
+  Widget _buildPerformanceTestCard(BuildContext context) {
+    return PerformanceTestWidget();
+  }
+
   List<Widget> _buildDashboardItems(BuildContext context, {bool isMobile = false}) {
     final dashboardVM = Provider.of<DashboardViewModel>(context, listen: false);
     final homeScreenProvider = HomeScreenProvider.of(context);
@@ -336,6 +343,12 @@ class DashboardGrid extends StatelessWidget {
         icon: Icons.pie_chart,
         iconColor: Colors.blue,
         child: CategoryDistribution(),
+      ),
+      DashboardCard(
+        title: 'Prueba de Performance',
+        icon: Icons.speed,
+        iconColor: Colors.purple,
+        child: PerformanceTestWidget(),
       ),
     ];
 

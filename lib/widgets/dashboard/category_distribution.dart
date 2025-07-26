@@ -13,9 +13,52 @@ class CategoryDistribution extends StatelessWidget {
       selector: (_, vm) => vm.categoryCounts,
       builder: (context, categoryCounts, _) {
         if (categoryCounts.isEmpty) {
-          return Center(child: Text('No hay datos de categorías.'));
+          final isMobile = MediaQuery.of(context).size.width < 600;
+          return Container(
+            alignment: Alignment.center,
+            height: isMobile ? 80 : 120,
+            child: Text('No hay datos de categorías.', style: TextStyle(color: Colors.grey)),
+          );
         }
-        return _CategoryDistributionChart(categoryCounts: categoryCounts);
+        final isMobile = MediaQuery.of(context).size.width < 600;
+        if (isMobile) {
+          final total = categoryCounts.values.fold<int>(0, (sum, v) => sum + v);
+          return Container(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Distribución por categoría', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Text('Total de productos: $total', style: const TextStyle(fontSize: 18, color: Colors.blue)),
+                const SizedBox(height: 8),
+                Text('Categorías: ${categoryCounts.length}', style: const TextStyle(fontSize: 16)),
+                SizedBox(height: 80),
+              ],
+            ),
+          );
+        }
+        // Versión web/desktop: lista de categorías y cantidad de productos expandible
+        return Padding(
+          padding: const EdgeInsets.all(16),
+          child: SizedBox.expand(
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: categoryCounts.entries.map((entry) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(entry.key, style: const TextStyle(fontSize: 15)),
+                      Text('${entry.value} productos', style: const TextStyle(fontSize: 15, color: Colors.grey)),
+                    ],
+                  ),
+                )).toList(),
+              ),
+            ),
+          ),
+        );
       },
     );
   }
@@ -42,6 +85,7 @@ class _CategoryDistributionChart extends StatelessWidget {
             Text('Total de productos: $total', style: const TextStyle(fontSize: 18, color: Colors.blue)),
             const SizedBox(height: 8),
             Text('Categorías: ${categoryCounts.length}', style: const TextStyle(fontSize: 16)),
+            SizedBox(height: 80),
           ],
         ),
       );
@@ -56,7 +100,8 @@ class _CategoryDistributionChart extends StatelessWidget {
 
     return Column(
       children: [
-        Expanded(
+        SizedBox(
+          height: 120,
           child: ListView.builder(
             itemCount: visibleEntries.length,
             itemBuilder: (context, index) {

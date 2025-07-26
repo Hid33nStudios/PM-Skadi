@@ -106,7 +106,7 @@ La aplicación está configurada como PWA con:
 - Monitorear métricas de uso
 
 ### Error Tracking
-- Considerar implementar Sentry para error tracking
+- Implementar sistema de logging local para debugging
 - Monitorear logs de Firebase
 
 ## 🔄 Actualizaciones

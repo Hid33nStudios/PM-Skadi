@@ -2,13 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../services/auth_service.dart';
+import '../services/firestore_optimized_service.dart';
 import '../theme/responsive.dart';
 import '../viewmodels/sync_viewmodel.dart';
-import '../widgets/sync_status_widget.dart';
+import '../viewmodels/dashboard_viewmodel_optimized.dart';
+import '../widgets/sync_diagnostic_widget.dart';
+import '../widgets/performance_metrics_widget.dart';
 import 'dashboard_screen.dart';
 import 'product_list_screen.dart';
-import 'category_management_screen.dart';
 import 'movement_history_screen.dart';
 import 'sales_screen.dart';
 import '../widgets/custom_snackbar.dart';
@@ -32,6 +35,11 @@ class _HomeScreenState extends State<HomeScreen> {
   String _username = '';
   bool _isDrawerOpen = false;
   bool _isSidebarExpanded = false;
+  bool _showPerformanceMetrics = false;
+
+  // Servicio optimizado
+  late final FirestoreOptimizedService _firestoreOptimizedService;
+  late final DashboardViewModelOptimized _dashboardViewModelOptimized;
 
   // Menú items con iconos y colores personalizados
   static List<MenuItemData> _menuItems = [
@@ -44,7 +52,7 @@ class _HomeScreenState extends State<HomeScreen> {
     MenuItemData(
       icon: Icons.inventory_2_outlined,
       selectedIcon: Icons.inventory_2,
-      label: 'Stock',
+      label: 'Productos',
       color: Colors.orange,
     ),
     MenuItemData(
@@ -70,11 +78,75 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    _initializeOptimizedServices();
     _loadUserProfile();
+    _updateSelectedIndexFromRoute();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _updateSelectedIndexFromRoute();
+  }
+
+  void _updateSelectedIndexFromRoute() {
+    try {
+      final location = GoRouterState.of(context).uri.path;
+      int newIndex = _selectedIndex;
+      
+      switch (location) {
+        case '/':
+          newIndex = 0; // Dashboard
+          break;
+        case '/products':
+          newIndex = 1; // Productos
+          break;
+        case '/categories':
+          newIndex = 2; // Categorías
+          break;
+        case '/movements':
+          newIndex = 3; // Movimientos
+          break;
+        case '/sales':
+          newIndex = 4; // Ventas
+          break;
+      }
+      
+      if (newIndex != _selectedIndex) {
+        setState(() {
+          _selectedIndex = newIndex;
+        });
+      }
+    } catch (e) {
+      // Ignorar errores de contexto desactivado
+      print('⚠️ Error al actualizar índice de navegación: $e');
+    }
+  }
+
+  void _navigateToProducts() {
+    setState(() {
+      _selectedIndex = 1; // Productos
+    });
+  }
+
+  // Método público para actualizar el índice desde otras pantallas
+  void updateSelectedIndex(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+  }
+
+  void _initializeOptimizedServices() {
+    _firestoreOptimizedService = FirestoreOptimizedService();
+    _dashboardViewModelOptimized = DashboardViewModelOptimized(
+      firestoreService: _firestoreOptimizedService,
+    );
   }
 
   @override
   void dispose() {
+    _firestoreOptimizedService.dispose();
+    _dashboardViewModelOptimized.dispose();
     super.dispose();
   }
 
@@ -110,6 +182,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_selectedIndex == index) return;
     setState(() {
       _selectedIndex = index;
+      _showPerformanceMetrics = false; // Ocultar métricas al cambiar de página
     });
     
     // Navegar usando el router
@@ -134,8 +207,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _handleSettingsMenu(BuildContext context, String value) {
     switch (value) {
-      case 'migration':
-        context.go('/migration');
+      case 'performance_metrics':
+        setState(() {
+          _showPerformanceMetrics = !_showPerformanceMetrics;
+        });
         break;
       case 'force_sync':
         _forceSync(context);
@@ -147,10 +222,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _forceSync(BuildContext context) async {
-    final syncViewModel = context.read<SyncViewModel>();
-    
     try {
-      await syncViewModel.forceSync();
+      await _firestoreOptimizedService.forceSync();
       if (context.mounted) {
         CustomSnackBar.showInfo(
           context: context,
@@ -159,8 +232,7 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     } catch (e) {
       if (context.mounted) {
-        final errorType = syncViewModel.errorType ?? AppErrorType.sincronizacion;
-        showAppError(context, errorType);
+        showAppError(context, AppErrorType.sincronizacion);
       }
     }
   }
@@ -174,7 +246,7 @@ class _HomeScreenState extends State<HomeScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Versión: 1.0.0'),
+            const Text('Versión: 2.0.0'),
             const SizedBox(height: 8),
             const Text('Sistema de Gestión de Inventario'),
             const SizedBox(height: 16),
@@ -183,10 +255,9 @@ class _HomeScreenState extends State<HomeScreen> {
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            const Text('• Funcionamiento offline con Hive'),
-            const Text('• Sincronización automática'),
-            const Text('• Múltiples dispositivos'),
-            const Text('• APIs gratuitas'),
+            const Text('• Firebase optimizado con cache inteligente'),
+            const Text('• Operaciones batch automáticas'),
+            const Text('• Métricas de performance en tiempo real'),
             const Text('• Gestión de productos'),
             const Text('• Control de stock'),
             const Text('• Reportes y análisis'),
@@ -267,54 +338,15 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
       actions: [
-        // Widget de sincronización - usar SyncStatusDot para ambos (móvil y web)
-        Consumer<SyncViewModel>(
-          builder: (context, syncViewModel, child) {
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4.0),
-              child: SyncStatusDot(
-                size: isMobile ? 12.0 : 16.0, // Más pequeño para móvil, más grande para web
-                onTap: () {
-                  // Mostrar detalles de sincronización
-                  showDialog(
-                    context: context,
-                    builder: (context) => AlertDialog(
-                      title: const Text('Estado de Sincronización'),
-                      content: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Estado: ${syncViewModel.getSyncStatusText()}'),
-                          const SizedBox(height: 8),
-                          if (syncViewModel.pendingChangesCount > 0)
-                            Text('Pendientes: ${syncViewModel.pendingChangesCount} cambios'),
-                          const SizedBox(height: 8),
-                          Text('Recomendación: ${syncViewModel.getSyncRecommendations()}'),
-                        ],
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(context),
-                          child: const Text('Cerrar'),
-                        ),
-                        if (syncViewModel.pendingChangesCount > 0)
-                          ElevatedButton(
-                            onPressed: () {
-                              syncViewModel.forceSync();
-                              Navigator.pop(context);
-                            },
-                            child: const Text('Sincronizar'),
-                          ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            );
-          },
+        // Widget de sincronización optimizado
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4.0),
+          child: SyncDiagnosticWidget(
+            size: isMobile ? 12.0 : 16.0,
+          ),
         ),
         
-        // Menú de configuración
+        // Menú de configuración optimizado
         PopupMenuButton<String>(
           icon: Icon(
             Icons.settings, 
@@ -324,12 +356,21 @@ class _HomeScreenState extends State<HomeScreen> {
           onSelected: (value) => _handleSettingsMenu(context, value),
           itemBuilder: (context) => [
             PopupMenuItem<String>(
-              value: 'migration',
+              value: 'performance_metrics',
               child: Row(
                 children: [
-                  const Icon(Icons.swap_horiz),
+                  Icon(
+                    _showPerformanceMetrics ? Icons.analytics : Icons.analytics_outlined,
+                    color: _showPerformanceMetrics ? Colors.green : null,
+                  ),
                   const SizedBox(width: 8),
-                  const Text('Migración de Datos'),
+                  Text(
+                    _showPerformanceMetrics ? 'Ocultar Métricas' : 'Métricas de Performance',
+                    style: TextStyle(
+                      color: _showPerformanceMetrics ? Colors.green : null,
+                      fontWeight: _showPerformanceMetrics ? FontWeight.bold : null,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -390,7 +431,29 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildContent() {
-    return widget.child ?? const DashboardScreen(showAppBar: false);
+    return Column(
+      children: [
+        // Widget de métricas de performance (solo si está activado)
+        if (_showPerformanceMetrics)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade100,
+              border: Border(
+                bottom: BorderSide(color: Colors.grey.shade300),
+              ),
+            ),
+            child: PerformanceMetricsWidget(
+              viewModel: _dashboardViewModelOptimized,
+            ),
+          ),
+        // Contenido principal
+        Expanded(
+          child: widget.child ?? const DashboardScreen(showAppBar: false),
+        ),
+      ],
+    );
   }
 
   // --- NUEVO: Modal de búsqueda global tipo command palette ---
@@ -445,7 +508,7 @@ class _HomeScreenState extends State<HomeScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: _menuItems.asMap().entries.map((entry) {
+                                children: _menuItems.asMap().entries.map((entry) {
                   final index = entry.key;
                   final item = entry.value;
                   final isSelected = _selectedIndex == index;
@@ -906,6 +969,11 @@ class SidebarFooter extends StatelessWidget {
     this.isSidebarExpanded = true,
   }) : super(key: key);
 
+  String _getAppVersion() {
+    // Por ahora retornamos la versión hardcodeada hasta que se instale package_info_plus
+    return '4.0.0';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -929,8 +997,8 @@ class SidebarFooter extends StatelessWidget {
                   semanticLabel: 'Información de versión',
                 ),
                 const SizedBox(width: 8),
-                const Text(
-                  'Alpha v1.0.0',
+                Text(
+                  'Alpha v${_getAppVersion()}',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 12,

@@ -40,6 +40,34 @@
   <link rel="manifest" href="manifest.json">
   <meta http-equiv="Cache-control" content="public">
   <link rel="preload" as="script" href="flutter_bootstrap.js">
+  <script>
+    // Forzar actualización del service worker y cache
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(registrations) {
+        for(let registration of registrations) {
+          registration.unregister();
+        }
+      });
+    }
+    
+    // Limpiar cache del navegador
+    if ('caches' in window) {
+      caches.keys().then(function(names) {
+        for (let name of names) {
+          caches.delete(name);
+        }
+      });
+    }
+    
+    // Agregar timestamp para evitar cache
+    const timestamp = new Date().getTime();
+    const links = document.querySelectorAll('link[rel="preload"]');
+    links.forEach(link => {
+      if (link.href.includes('flutter_bootstrap.js')) {
+        link.href = link.href + '?v=' + timestamp;
+      }
+    });
+  </script>
 </head>
 <body>
   <script src="flutter_bootstrap.js" defer></script>

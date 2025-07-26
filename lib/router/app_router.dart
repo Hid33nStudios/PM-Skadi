@@ -5,14 +5,12 @@ import '../screens/dashboard_screen.dart';
 import '../screens/login_screen.dart';
 import '../screens/product_list_screen.dart';
 import '../screens/add_product_screen.dart';
-import '../screens/add_sale_screen.dart';
-import '../screens/category_management_screen.dart';
+import '../screens/category_screen.dart';
 import '../screens/analytics_screen.dart';
 import '../screens/sales_history_screen.dart';
 import '../screens/register_screen.dart';
 import '../screens/product_detail_screen.dart';
 import '../screens/edit_product_screen.dart';
-import '../screens/migration_screen.dart';
 import '../screens/new_sale_screen.dart';
 import '../screens/new_product_screen.dart';
 import '../screens/barcode_scanner_screen.dart';
@@ -40,10 +38,9 @@ class AppRouter {
         final isLoggedIn = authViewModel.isAuthenticated;
         final isLoginRoute = state.matchedLocation == '/login';
         final isRegisterRoute = state.matchedLocation == '/register';
-        final isMigrationRoute = state.matchedLocation == '/migration';
         
         // Si no está logueado y no está en rutas de auth, ir al login
-        if (!isLoggedIn && !isLoginRoute && !isRegisterRoute && !isMigrationRoute) {
+        if (!isLoggedIn && !isLoginRoute && !isRegisterRoute) {
           print('🔄 Router: Usuario no autenticado, redirigiendo a login');
           return '/login';
         }
@@ -70,13 +67,6 @@ class AppRouter {
           path: '/register',
           name: 'register',
           builder: (context, state) => const RegisterScreen(),
-        ),
-        
-        // Migración (fuera del HomeScreen)
-        GoRoute(
-          path: '/migration',
-          name: 'migration',
-          builder: (context, state) => const MigrationScreen(),
         ),
         
         // HomeScreen como contenedor principal con rutas anidadas
@@ -128,11 +118,7 @@ class AppRouter {
               builder: (context, state) => const SalesScreen(),
             ),
             
-            GoRoute(
-              path: '/sales/add',
-              name: 'add-sale',
-              builder: (context, state) => const AddSaleScreen(),
-            ),
+          
             
             GoRoute(
               path: '/sales/new',
@@ -165,10 +151,7 @@ class AppRouter {
             GoRoute(
               path: '/categories',
               name: 'categories',
-              builder: (context, state) {
-                final showAddForm = state.uri.queryParameters['add'] == '1';
-                return CategoryManagementScreen(showAddForm: showAddForm);
-              },
+              builder: (context, state) => const CategoryScreen(),
             ),
             
             // Analytics

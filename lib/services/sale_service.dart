@@ -92,15 +92,9 @@ class SaleService {
   /// Obtener ventas por producto
   Future<List<Sale>> getSalesByProduct(String productId) async {
     try {
-      final querySnapshot = await _firestore
-          .collection('sales')
-          .where('productId', isEqualTo: productId)
-          .orderBy('date', descending: true)
-          .get();
-      
-      return querySnapshot.docs
-          .map((doc) => Sale.fromMap(doc.data(), doc.id))
-          .toList();
+      final sales = await getSales();
+      // Filtrar ventas donde algún item tiene ese productId
+      return sales.where((sale) => sale.items.any((item) => item.productId == productId)).toList();
     } catch (e, stackTrace) {
       throw AppError.fromException(e, stackTrace);
     }
@@ -111,23 +105,19 @@ class SaleService {
     try {
       final sales = await getSales();
       final totalSales = sales.length;
-      final totalRevenue = sales.fold<double>(0, (sum, sale) => sum + sale.amount);
+      final totalRevenue = sales.fold<double>(0, (sum, sale) => sum + sale.total);
       final averageSale = totalSales > 0 ? totalRevenue / totalSales : 0;
-      
       // Calcular ventas por mes (últimos 12 meses)
       final now = DateTime.now();
       final monthlyStats = <String, double>{};
-      
       for (int i = 0; i < 12; i++) {
         final month = DateTime(now.year, now.month - i, 1);
         final monthKey = '${month.year}-${month.month.toString().padLeft(2, '0')}';
         final monthSales = sales.where((sale) => 
           sale.date.year == month.year && sale.date.month == month.month
         ).toList();
-        
-        monthlyStats[monthKey] = monthSales.fold<double>(0, (sum, sale) => sum + sale.amount);
+        monthlyStats[monthKey] = monthSales.fold<double>(0, (sum, sale) => sum + sale.total);
       }
-      
       return {
         'totalSales': totalSales,
         'totalRevenue': totalRevenue,
@@ -143,19 +133,24 @@ class SaleService {
   Future<List<Map<String, dynamic>>> getTopSellingProducts() async {
     try {
       final sales = await getSales();
-      final productSales = <String, int>{};
-      
+      final productSales = <String, Map<String, dynamic>>{};
       for (final sale in sales) {
-        productSales[sale.productId] = (productSales[sale.productId] ?? 0) + 1;
+        for (final item in sale.items) {
+          if (!productSales.containsKey(item.productId)) {
+            productSales[item.productId] = {
+              'productId': item.productId,
+              'productName': item.productName,
+              'quantity': 0,
+              'total': 0.0,
+            };
+          }
+          productSales[item.productId]!['quantity'] += item.quantity;
+          productSales[item.productId]!['total'] += item.subtotal;
+        }
       }
-      
-      final sortedProducts = productSales.entries.toList()
-        ..sort((a, b) => b.value.compareTo(a.value));
-      
-      return sortedProducts.take(10).map((entry) => {
-        'productId': entry.key,
-        'salesCount': entry.value,
-      }).toList();
+      final sortedProducts = productSales.values.toList()
+        ..sort((a, b) => (b['quantity'] as int).compareTo(a['quantity'] as int));
+      return sortedProducts.take(10).toList();
     } catch (e, stackTrace) {
       throw AppError.fromException(e, stackTrace);
     }

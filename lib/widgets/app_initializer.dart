@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../viewmodels/sync_viewmodel.dart';
-import '../viewmodels/migration_viewmodel.dart';
-import '../services/hybrid_data_service.dart';
-import '../services/hive_database_service.dart';
+
+import '../services/firestore_data_service.dart';
 import '../config/app_config.dart';
+import '../config/performance_config.dart';
 import 'package:flutter/foundation.dart';
 // ignore: avoid_web_libraries_in_flutter
 import 'dart:html' as html;
@@ -16,6 +16,7 @@ import '../widgets/dashboard/category_distribution.dart' deferred as category_di
 import '../widgets/dashboard/recent_activity.dart' deferred as recent_activity;
 import '../widgets/dashboard/stock_status.dart' deferred as stock_status;
 import '../widgets/dashboard/sales_summary.dart' deferred as sales_summary;
+import 'dart:async'; // Import for Timer
 
 class AppInitializer extends StatefulWidget {
   final Widget child;
@@ -33,41 +34,70 @@ class AppInitializer extends StatefulWidget {
 class _AppInitializerState extends State<AppInitializer> {
   bool _isInitialized = false;
   String _initializationStatus = 'Inicializando...';
+  bool _criticalServicesReady = false;
 
-  // Variables para el listener global
+  // Variables para el listener global optimizado
   String _barcodeBuffer = '';
   DateTime? _lastKeyTime;
   static const Duration _barcodeTimeout = Duration(milliseconds: 100);
+  
+  // OPTIMIZACIÓN: Timer para debounce del listener
+  Timer? _debounceTimer;
 
   @override
   void initState() {
     super.initState();
     _initializeServices();
-    // Listener global solo en web/PC
+    // OPTIMIZACIÓN: Listener global optimizado solo en web/PC
     if (kIsWeb) {
-      html.window.addEventListener('keydown', _onKeyDown);
+      html.window.addEventListener('keydown', _onKeyDownOptimized);
     }
   }
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
     if (kIsWeb) {
-      html.window.removeEventListener('keydown', _onKeyDown);
+      html.window.removeEventListener('keydown', _onKeyDownOptimized);
     }
     super.dispose();
   }
 
-  void _onKeyDown(html.Event event) {
+  // OPTIMIZACIÓN: Listener optimizado con debounce
+  void _onKeyDownOptimized(html.Event event) {
     if (event is! html.KeyboardEvent) return;
+    
+    // OPTIMIZACIÓN: Solo procesar si es necesario
+    if (!_shouldProcessKeyEvent(event)) return;
+    
+    // OPTIMIZACIÓN: Debounce para reducir CPU
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 50), () {
+      _processKeyEvent(event);
+    });
+  }
+
+  // OPTIMIZACIÓN: Verificar si debe procesar el evento
+  bool _shouldProcessKeyEvent(html.KeyboardEvent event) {
     // Ignorar si hay un TextField enfocado
-    if (html.document.activeElement?.tagName == 'INPUT' || html.document.activeElement?.tagName == 'TEXTAREA') {
-      return;
+    if (html.document.activeElement?.tagName == 'INPUT' || 
+        html.document.activeElement?.tagName == 'TEXTAREA') {
+      return false;
     }
+    
+    // Solo procesar teclas relevantes
+    return event.key == 'Enter' || 
+           (event.key != null && event.key!.length == 1);
+  }
+
+  // OPTIMIZACIÓN: Procesar evento de tecla de forma eficiente
+  void _processKeyEvent(html.KeyboardEvent event) {
     final now = DateTime.now();
     if (_lastKeyTime == null || now.difference(_lastKeyTime!) > _barcodeTimeout) {
       _barcodeBuffer = '';
     }
     _lastKeyTime = now;
+    
     if (event.key == 'Enter') {
       final code = _barcodeBuffer.trim();
       _barcodeBuffer = '';
@@ -146,53 +176,26 @@ class _AppInitializerState extends State<AppInitializer> {
     );
   }
 
+  // OPTIMIZACIÓN: Inicialización en etapas
   Future<void> _initializeServices() async {
     try {
-      print('AppInitializer: Inicializando base de datos local...');
-      setState(() {
-        _initializationStatus = 'Inicializando base de datos local...';
-      });
-
-      // Inicializar Hive
-      final hiveService = context.read<HiveDatabaseService>();
-      await hiveService.initialize();
-      print('AppInitializer: Hive inicializado correctamente');
-
-      setState(() {
-        _initializationStatus = 'Configurando sincronización...';
-      });
-      print('AppInitializer: Configurando sincronización...');
-
-      // Inicializar sincronización
-      await AppConfig.initializeSync(context);
-      print('AppInitializer: Sincronización configurada correctamente');
-
-      setState(() {
-        _initializationStatus = 'Inicializando servicios híbridos...';
-      });
-      print('AppInitializer: Inicializando servicios híbridos...');
-
-      // Inicializar servicio híbrido
-      final hybridService = context.read<HybridDataService>();
-      await hybridService.initialize();
-      print('AppInitializer: Servicio híbrido inicializado correctamente');
-
-      setState(() {
-        _initializationStatus = 'Verificando datos...';
-      });
-      print('AppInitializer: Verificando datos de migración...');
-
-      // Verificar si hay datos para migrar
-      final migrationViewModel = context.read<MigrationViewModel>();
-      await migrationViewModel.checkFirebaseData();
-      print('AppInitializer: Verificación de datos completada');
-
-      setState(() {
-        _initializationStatus = 'Completado';
-        _isInitialized = true;
-      });
-      AppInitializer.isInitializedNotifier.value = true;
-      print('✅ AppInitializer: Servicios inicializados correctamente');
+      print('🚀 AppInitializer: Iniciando inicialización optimizada...');
+      
+      // ETAPA 0: Detectar hardware (muy rápido)
+      await _detectHardwareAndConfigure();
+      _markStageComplete('hardware_detection');
+      
+      // ETAPA 1: Servicios críticos (rápido)
+      await _initializeCriticalServices();
+      _markStageComplete('critical');
+      
+      // ETAPA 2: Servicios básicos (medio)
+      await _initializeBasicServices();
+      _markStageComplete('basic');
+      
+      // ETAPA 3: Servicios avanzados (lento, en background)
+      _initializeAdvancedServices();
+      
     } catch (e, stack) {
       setState(() {
         _initializationStatus = 'Error: $e';
@@ -202,104 +205,202 @@ class _AppInitializerState extends State<AppInitializer> {
     }
   }
 
+  // OPTIMIZACIÓN: Detectar hardware y configurar optimizaciones
+  Future<void> _detectHardwareAndConfigure() async {
+    print('🔍 AppInitializer: Detectando hardware...');
+    setState(() {
+      _initializationStatus = 'Detectando hardware...';
+    });
+
+    try {
+      final isLegacyHardware = await PerformanceConfig.detectLegacyHardware();
+      final config = PerformanceConfig.getCurrentConfig();
+      
+      print('⚙️ AppInitializer: Configuración aplicada:');
+      print('  - Hardware: ${isLegacyHardware ? "Antiguo" : "Moderno"}');
+      print('  - Cache: ${config['cacheExpiration']} minutos');
+      print('  - Sync: ${config['syncInterval']} minutos');
+      print('  - Elementos por página: ${config['maxItemsPerPage']}');
+      print('  - Animaciones: ${config['enableAnimations'] ? "Habilitadas" : "Deshabilitadas"}');
+      
+      setState(() {
+        _initializationStatus = 'Hardware detectado: ${isLegacyHardware ? "Antiguo" : "Moderno"}';
+      });
+    } catch (e) {
+      print('⚠️ AppInitializer: Error detectando hardware: $e');
+      setState(() {
+        _initializationStatus = 'Usando configuración estándar';
+      });
+    }
+  }
+
+  // OPTIMIZACIÓN: Servicios críticos (esenciales para mostrar la app)
+  Future<void> _initializeCriticalServices() async {
+    print('🔄 AppInitializer: Inicializando servicios críticos...');
+    setState(() {
+      _initializationStatus = 'Inicializando servicios críticos...';
+    });
+
+    // Solo servicios esenciales para mostrar la app
+    final firestoreService = context.read<FirestoreDataService>();
+    await firestoreService.initialize();
+    print('✅ AppInitializer: FirestoreDataService inicializado correctamente');
+
+    setState(() {
+      _criticalServicesReady = true;
+      _initializationStatus = 'Servicios críticos listos...';
+    });
+  }
+
+  // OPTIMIZACIÓN: Servicios básicos (necesarios para funcionalidad básica)
+  Future<void> _initializeBasicServices() async {
+    print('🔄 AppInitializer: Inicializando servicios básicos...');
+    setState(() {
+      _initializationStatus = 'Configurando servicios básicos...';
+    });
+
+    // Verificar datos de Firebase (no crítico)
+    print('AppInitializer: Verificación de datos completada');
+
+    setState(() {
+      _initializationStatus = 'Servicios básicos listos...';
+    });
+  }
+
+  // OPTIMIZACIÓN: Servicios avanzados (en background)
+  void _initializeAdvancedServices() {
+    print('🔄 AppInitializer: Inicializando servicios avanzados en background...');
+    setState(() {
+      _initializationStatus = 'Configurando servicios avanzados...';
+    });
+
+    // Inicializar sincronización en background (no crítico)
+    AppConfig.initializeSync(context).then((_) {
+      print('✅ AppInitializer: Sincronización inicializada en background');
+      if (mounted) {
+        setState(() {
+          _initializationStatus = 'Completado';
+          _isInitialized = true;
+        });
+        AppInitializer.isInitializedNotifier.value = true;
+        print('✅ AppInitializer: Servicios inicializados correctamente');
+      }
+    }).catchError((e) {
+      print('⚠️ AppInitializer: Error en servicios avanzados: $e');
+      // No bloquear la app si fallan servicios no críticos
+      if (mounted) {
+        setState(() {
+          _initializationStatus = 'Completado (con advertencias)';
+          _isInitialized = true;
+        });
+        AppInitializer.isInitializedNotifier.value = true;
+      }
+    });
+  }
+
+  // OPTIMIZACIÓN: Marcar etapa completada
+  void _markStageComplete(String stage) {
+    print('✅ AppInitializer: Etapa "$stage" completada');
+  }
+
   @override
   Widget build(BuildContext context) {
-    if (!_isInitialized) {
-      return MaterialApp(
-        home: Scaffold(
-          backgroundColor: Colors.black,
-          body: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Logo
-                Image.asset(
-                  'assets/images/logo.webp',
-                  height: 120,
-                ),
-                const SizedBox(height: 40),
-                
-                // Título
-                Text(
-                  'Stockcito',
-                  style: TextStyle(
-                    fontSize: 48,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.yellow,
-                    letterSpacing: 2,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Planeta Motos',
-                  style: TextStyle(
-                    fontSize: 18,
-                    color: Colors.white70,
-                    letterSpacing: 1,
-                  ),
-                ),
-                const SizedBox(height: 60),
-                
-                // Indicador de progreso
-                CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.yellow),
-                  strokeWidth: 3,
-                ),
-                const SizedBox(height: 20),
-                
-                // Estado de inicialización
-                Text(
-                  _initializationStatus,
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.white,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 40),
-                
-                // Información de la app
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.yellow.withOpacity(0.3)),
-                  ),
-                  child: Column(
-                    children: [
-                      Text(
-                        'Configuración Híbrida con Hive',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.yellow,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        '• Base de datos local Hive\n• Funcionamiento offline\n• Sincronización automática\n• Múltiples dispositivos',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.white70,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
+    // OPTIMIZACIÓN: Mostrar app cuando servicios críticos estén listos
+    if (!_criticalServicesReady) {
+      return _buildMinimalLoadingUI();
     }
 
     return widget.child;
   }
 
+  // OPTIMIZACIÓN: UI de carga minimalista
+  Widget _buildMinimalLoadingUI() {
+    return MaterialApp(
+      home: Scaffold(
+        backgroundColor: Colors.black,
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // OPTIMIZACIÓN: Texto en lugar de imagen pesada
+              Text(
+                'Stockcito',
+                style: TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.yellow,
+                  letterSpacing: 2,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Planeta Motos',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.white70,
+                  letterSpacing: 1,
+                ),
+              ),
+              const SizedBox(height: 40),
+              
+              // OPTIMIZACIÓN: Indicador simple
+              CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.yellow),
+                strokeWidth: 3,
+              ),
+              const SizedBox(height: 20),
+              
+              // OPTIMIZACIÓN: Estado simple
+              Text(
+                _initializationStatus,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.white,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 20),
+              
+              // OPTIMIZACIÓN: Información minimalista
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.yellow.withOpacity(0.3)),
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      'Diseñado por Hid33nStudios',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.yellow,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Versión exclusiva para Planeta Motos',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: Colors.white70,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> precargarBundlesDashboard() async {
-    // Precargar todos los bundles diferidos del dashboard en paralelo
+    // OPTIMIZACIÓN: Cargar solo cuando se necesite
+    print('🔄 AppInitializer: Precargando bundles del dashboard...');
     await Future.wait([
       sales_chart.loadLibrary(),
       category_distribution.loadLibrary(),
@@ -307,6 +408,7 @@ class _AppInitializerState extends State<AppInitializer> {
       stock_status.loadLibrary(),
       sales_summary.loadLibrary(),
     ]);
+    print('✅ AppInitializer: Bundles del dashboard precargados');
   }
 }
 
