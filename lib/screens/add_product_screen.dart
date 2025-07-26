@@ -114,6 +114,15 @@ class _AddProductScreenState extends State<AddProductScreen> {
       return;
     }
 
+    // Validar que no exista un producto con el mismo nombre (case-insensitive)
+    final productVM = context.read<ProductViewModel>();
+    final name = _nameController.text.trim();
+    final exists = productVM.products.any((p) => p.name.trim().toLowerCase() == name.toLowerCase());
+    if (exists) {
+      showAppError(context, AppErrorType.duplicado, detalle: 'Este producto ya existe');
+      return;
+    }
+
     try {
       print('🔄 [AddProductScreen] Iniciando guardado de producto...');
       final now = DateTime.now();
@@ -171,420 +180,555 @@ class _AddProductScreenState extends State<AddProductScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Agregar Producto'),
-        backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/products'),
-        ),
-      ),
-      body: _buildResponsiveForm(),
-    );
-  }
-
-  /// Construye un formulario responsive que se adapta a diferentes tamaños de pantalla
-  Widget _buildResponsiveForm() {
-    return Consumer<ProductViewModel>(
-      builder: (context, productViewModel, child) {
-        return ResponsiveForm(
-          title: 'Agregar Nuevo Producto',
-          maxWidth: 900, // Ancho máximo en desktop
+    final isWide = MediaQuery.of(context).size.width > 900;
+    return Container(
+      width: double.infinity,
+      color: Colors.white,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Botón de escaneo responsive - más prominente en móvil
-            _buildScanButton(),
-            
-            Form(
-              key: _formKey,
+            // Título y subtítulo arriba a la izquierda
+            Padding(
+              padding: const EdgeInsets.only(left: 40, top: 40, right: 40, bottom: 0),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Información básica del producto
-                  _buildBasicInfoSection(),
-                  
-                  // Información de stock - layout responsive
-                  _buildStockSection(),
-                  
-                  // Categoría y código de barras
-                  _buildCategoryAndBarcodeSection(),
-                  
-                  // Botones de acción responsive
-                  _buildActionButtons(),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Text('NEW', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue, fontSize: 16, letterSpacing: 1)),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        'Nuevo producto',
+                        style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey[900],
+                              letterSpacing: -1,
+                            ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Agrega un producto a tu inventario',
+                    style: TextStyle(
+                      color: Color(0xFF8A8A8A),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
                 ],
               ),
             ),
+            // El formulario ahora va sin Card, solo con maxWidth 700 y paddings ajustados
+            Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 700),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 32),
+                  child: Consumer<ProductViewModel>(
+                    builder: (context, productViewModel, child) {
+                      return Form(
+                        key: _formKey,
+                        child: isWide
+                            ? Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      // Columna izquierda: info básica
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                                          children: [
+                                            const Text('Nombre', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                                            const SizedBox(height: 4),
+                                            TextFormField(
+                                              controller: _nameController,
+                                              decoration: InputDecoration(
+                                                hintText: 'Ej: Aceite para Motor 20W-50',
+                                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Color(0xFFE0E0E0))),
+                                                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.green)),
+                                                contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                                                filled: true,
+                                                fillColor: const Color(0xFFF8F8F8),
+                                              ),
+                                              validator: (value) {
+                                                if (value == null || value.trim().isEmpty) {
+                                                  return 'El nombre es requerido';
+                                                }
+                                                return null;
+                                              },
+                                            ),
+                                            const SizedBox(height: 20),
+                                            const Text('Descripción', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                                            const SizedBox(height: 4),
+                                            TextFormField(
+                                              controller: _descriptionController,
+                                              decoration: InputDecoration(
+                                                hintText: 'Describe el producto',
+                                                prefixIcon: const Icon(Icons.edit_outlined, color: Colors.grey),
+                                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Color(0xFFE0E0E0))),
+                                                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.green)),
+                                                contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                                                filled: true,
+                                                fillColor: const Color(0xFFF8F8F8),
+                                              ),
+                                              maxLines: 2,
+                                              validator: (value) {
+                                                if (value == null || value.trim().isEmpty) {
+                                                  return 'La descripción es requerida';
+                                                }
+                                                return null;
+                                              },
+                                            ),
+                                            const SizedBox(height: 20),
+                                            const Text('Precio', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                                            const SizedBox(height: 4),
+                                            TextFormField(
+                                              controller: _priceController,
+                                              decoration: InputDecoration(
+                                                hintText: '0.00',
+                                                prefixIcon: const Icon(Icons.attach_money, color: Colors.green),
+                                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Color(0xFFE0E0E0))),
+                                                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.green)),
+                                                contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                                                filled: true,
+                                                fillColor: const Color(0xFFF8F8F8),
+                                              ),
+                                              keyboardType: TextInputType.number,
+                                              validator: (value) {
+                                                if (value == null || value.trim().isEmpty) {
+                                                  return 'El precio es requerido';
+                                                }
+                                                if (double.tryParse(value) == null) {
+                                                  return 'Ingresa un precio válido';
+                                                }
+                                                if (double.parse(value) <= 0) {
+                                                  return 'El precio debe ser mayor a 0';
+                                                }
+                                                return null;
+                                              },
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      const SizedBox(width: 32),
+                                      // Columna derecha: stock, categoría, código
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                                          children: [
+                                            const Text('Stock actual', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                                            const SizedBox(height: 4),
+                                            TextFormField(
+                                              controller: _stockController,
+                                              decoration: InputDecoration(
+                                                hintText: '0',
+                                                prefixIcon: const Icon(Icons.inventory_2_outlined, color: Colors.orange),
+                                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Color(0xFFE0E0E0))),
+                                                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.green)),
+                                                contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                                                filled: true,
+                                                fillColor: const Color(0xFFF8F8F8),
+                                              ),
+                                              keyboardType: TextInputType.number,
+                                              validator: (value) {
+                                                if (value == null || value.trim().isEmpty) {
+                                                  return 'El stock es requerido';
+                                                }
+                                                if (int.tryParse(value) == null) {
+                                                  return 'Ingresa un número válido';
+                                                }
+                                                if (int.parse(value) < 0) {
+                                                  return 'El stock no puede ser negativo';
+                                                }
+                                                return null;
+                                              },
+                                            ),
+                                            const SizedBox(height: 20),
+                                            const Text('Stock mínimo', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                                            const SizedBox(height: 4),
+                                            TextFormField(
+                                              controller: _minStockController,
+                                              decoration: InputDecoration(
+                                                hintText: '0',
+                                                prefixIcon: const Icon(Icons.arrow_downward, color: Colors.redAccent),
+                                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Color(0xFFE0E0E0))),
+                                                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.green)),
+                                                contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                                                filled: true,
+                                                fillColor: const Color(0xFFF8F8F8),
+                                              ),
+                                              keyboardType: TextInputType.number,
+                                              validator: (value) {
+                                                if (value == null || value.trim().isEmpty) {
+                                                  return 'El stock mínimo es requerido';
+                                                }
+                                                if (int.tryParse(value) == null) {
+                                                  return 'Ingresa un número válido';
+                                                }
+                                                if (int.parse(value) < 0) {
+                                                  return 'El stock mínimo no puede ser negativo';
+                                                }
+                                                return null;
+                                              },
+                                            ),
+                                            const SizedBox(height: 20),
+                                            const Text('Stock máximo', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                                            const SizedBox(height: 4),
+                                            TextFormField(
+                                              controller: _maxStockController,
+                                              decoration: InputDecoration(
+                                                hintText: '0',
+                                                prefixIcon: const Icon(Icons.arrow_upward, color: Colors.redAccent),
+                                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Color(0xFFE0E0E0))),
+                                                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.green)),
+                                                contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                                                filled: true,
+                                                fillColor: const Color(0xFFF8F8F8),
+                                              ),
+                                              keyboardType: TextInputType.number,
+                                              validator: (value) {
+                                                if (value == null || value.trim().isEmpty) {
+                                                  return 'El stock máximo es requerido';
+                                                }
+                                                if (int.tryParse(value) == null) {
+                                                  return 'Ingresa un número válido';
+                                                }
+                                                if (int.parse(value) < 0) {
+                                                  return 'El stock máximo no puede ser negativo';
+                                                }
+                                                return null;
+                                              },
+                                            ),
+                                            const SizedBox(height: 20),
+                                            const Text('Categoría', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                                            const SizedBox(height: 4),
+                                            DropdownButtonFormField<String>(
+                                              decoration: InputDecoration(
+                                                hintText: 'Selecciona una categoría',
+                                                prefixIcon: const Icon(Icons.label_outline, color: Colors.blueGrey),
+                                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Color(0xFFE0E0E0))),
+                                                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.green)),
+                                                contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                                                filled: true,
+                                                fillColor: const Color(0xFFF8F8F8),
+                                              ),
+                                              value: _selectedCategory,
+                                              items: _categories.map((String category) {
+                                                return DropdownMenuItem<String>(
+                                                  value: category,
+                                                  child: Text(category),
+                                                );
+                                              }).toList(),
+                                              onChanged: (String? newValue) {
+                                                setState(() {
+                                                  _selectedCategory = newValue;
+                                                });
+                                              },
+                                              validator: (value) {
+                                                if (value == null || value.isEmpty) {
+                                                  return 'Por favor seleccione una categoría';
+                                                }
+                                                return null;
+                                              },
+                                            ),
+                                            const SizedBox(height: 20),
+                                            const Text('Código de barras', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                                            const SizedBox(height: 4),
+                                            TextFormField(
+                                              controller: _barcodeController,
+                                              decoration: InputDecoration(
+                                                hintText: 'Escanea o ingresa el código manualmente',
+                                                prefixIcon: const Icon(Icons.qr_code, color: Colors.grey),
+                                                suffixIcon: Icon(Icons.qr_code_scanner, color: Colors.blueGrey.shade300),
+                                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Color(0xFFE0E0E0))),
+                                                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.green)),
+                                                contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                                                filled: true,
+                                                fillColor: const Color(0xFFF8F8F8),
+                                              ),
+                                              keyboardType: TextInputType.number,
+                                            ),
+                                            const SizedBox(height: 4),
+                                            const Text(
+                                              'Puedes escanear con un lector o escribir el código manualmente',
+                                              style: TextStyle(color: Color(0xFF8A8A8A), fontSize: 13, fontWeight: FontWeight.w400),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 24), // Menos espacio
+                                  // Botón guardar
+                                  SizedBox(
+                                    width: double.infinity,
+                                    height: 54,
+                                    child: ElevatedButton.icon(
+                                      onPressed: _saveProduct,
+                                      icon: const Icon(Icons.save_alt, size: 22),
+                                      label: const Text('Guardar producto', style: TextStyle(fontSize: 18)),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.green.shade700,
+                                        foregroundColor: Colors.white,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                        padding: const EdgeInsets.symmetric(vertical: 16),
+                                        textStyle: const TextStyle(fontWeight: FontWeight.bold),
+                                        elevation: 0,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              )
+                            : Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  const Text('Nombre', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                                  const SizedBox(height: 4),
+                                  TextFormField(
+                                    controller: _nameController,
+                                    decoration: InputDecoration(
+                                      hintText: 'Ej: Aceite para Motor 20W-50',
+                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Color(0xFFE0E0E0))),
+                                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.green)),
+                                      contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                                      filled: true,
+                                      fillColor: const Color(0xFFF8F8F8),
+                                    ),
+                                    validator: (value) {
+                                      if (value == null || value.trim().isEmpty) {
+                                        return 'El nombre es requerido';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                  const SizedBox(height: 20),
+                                  const Text('Descripción', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                                  const SizedBox(height: 4),
+                                  TextFormField(
+                                    controller: _descriptionController,
+                                    decoration: InputDecoration(
+                                      hintText: 'Describe el producto',
+                                      prefixIcon: const Icon(Icons.edit_outlined, color: Colors.grey),
+                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Color(0xFFE0E0E0))),
+                                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.green)),
+                                      contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                                      filled: true,
+                                      fillColor: const Color(0xFFF8F8F8),
+                                    ),
+                                    maxLines: 2,
+                                    validator: (value) {
+                                      if (value == null || value.trim().isEmpty) {
+                                        return 'La descripción es requerida';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                  const SizedBox(height: 20),
+                                  const Text('Precio', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                                  const SizedBox(height: 4),
+                                  TextFormField(
+                                    controller: _priceController,
+                                    decoration: InputDecoration(
+                                      hintText: '0.00',
+                                      prefixIcon: const Icon(Icons.attach_money, color: Colors.green),
+                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Color(0xFFE0E0E0))),
+                                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.green)),
+                                      contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                                      filled: true,
+                                      fillColor: const Color(0xFFF8F8F8),
+                                    ),
+                                    keyboardType: TextInputType.number,
+                                    validator: (value) {
+                                      if (value == null || value.trim().isEmpty) {
+                                        return 'El precio es requerido';
+                                      }
+                                      if (double.tryParse(value) == null) {
+                                        return 'Ingresa un precio válido';
+                                      }
+                                      if (double.parse(value) <= 0) {
+                                        return 'El precio debe ser mayor a 0';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                  const SizedBox(height: 20),
+                                  const Text('Stock actual', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                                  const SizedBox(height: 4),
+                                  TextFormField(
+                                    controller: _stockController,
+                                    decoration: InputDecoration(
+                                      hintText: '0',
+                                      prefixIcon: const Icon(Icons.inventory_2_outlined, color: Colors.orange),
+                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Color(0xFFE0E0E0))),
+                                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.green)),
+                                      contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                                      filled: true,
+                                      fillColor: const Color(0xFFF8F8F8),
+                                    ),
+                                    keyboardType: TextInputType.number,
+                                    validator: (value) {
+                                      if (value == null || value.trim().isEmpty) {
+                                        return 'El stock es requerido';
+                                      }
+                                      if (int.tryParse(value) == null) {
+                                        return 'Ingresa un número válido';
+                                      }
+                                      if (int.parse(value) < 0) {
+                                        return 'El stock no puede ser negativo';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                  const SizedBox(height: 20),
+                                  const Text('Stock mínimo', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                                  const SizedBox(height: 4),
+                                  TextFormField(
+                                    controller: _minStockController,
+                                    decoration: InputDecoration(
+                                      hintText: '0',
+                                      prefixIcon: const Icon(Icons.arrow_downward, color: Colors.redAccent),
+                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Color(0xFFE0E0E0))),
+                                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.green)),
+                                      contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                                      filled: true,
+                                      fillColor: const Color(0xFFF8F8F8),
+                                    ),
+                                    keyboardType: TextInputType.number,
+                                    validator: (value) {
+                                      if (value == null || value.trim().isEmpty) {
+                                        return 'El stock mínimo es requerido';
+                                      }
+                                      if (int.tryParse(value) == null) {
+                                        return 'Ingresa un número válido';
+                                      }
+                                      if (int.parse(value) < 0) {
+                                        return 'El stock mínimo no puede ser negativo';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                  const SizedBox(height: 20),
+                                  const Text('Stock máximo', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                                  const SizedBox(height: 4),
+                                  TextFormField(
+                                    controller: _maxStockController,
+                                    decoration: InputDecoration(
+                                      hintText: '0',
+                                      prefixIcon: const Icon(Icons.arrow_upward, color: Colors.redAccent),
+                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Color(0xFFE0E0E0))),
+                                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.green)),
+                                      contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                                      filled: true,
+                                      fillColor: const Color(0xFFF8F8F8),
+                                    ),
+                                    keyboardType: TextInputType.number,
+                                    validator: (value) {
+                                      if (value == null || value.trim().isEmpty) {
+                                        return 'El stock máximo es requerido';
+                                      }
+                                      if (int.tryParse(value) == null) {
+                                        return 'Ingresa un número válido';
+                                      }
+                                      if (int.parse(value) < 0) {
+                                        return 'El stock máximo no puede ser negativo';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                  const SizedBox(height: 20),
+                                  const Text('Categoría', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                                  const SizedBox(height: 4),
+                                  DropdownButtonFormField<String>(
+                                    decoration: InputDecoration(
+                                      hintText: 'Selecciona una categoría',
+                                      prefixIcon: const Icon(Icons.label_outline, color: Colors.blueGrey),
+                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Color(0xFFE0E0E0))),
+                                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.green)),
+                                      contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                                      filled: true,
+                                      fillColor: const Color(0xFFF8F8F8),
+                                    ),
+                                    value: _selectedCategory,
+                                    items: _categories.map((String category) {
+                                      return DropdownMenuItem<String>(
+                                        value: category,
+                                        child: Text(category),
+                                      );
+                                    }).toList(),
+                                    onChanged: (String? newValue) {
+                                      setState(() {
+                                        _selectedCategory = newValue;
+                                      });
+                                    },
+                                    validator: (value) {
+                                      if (value == null || value.isEmpty) {
+                                        return 'Por favor seleccione una categoría';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                  const SizedBox(height: 20),
+                                  const Text('Código de barras', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                                  const SizedBox(height: 4),
+                                  TextFormField(
+                                    controller: _barcodeController,
+                                    decoration: InputDecoration(
+                                      hintText: 'Ej: 7701234567890',
+                                      prefixIcon: const Icon(Icons.qr_code, color: Colors.grey),
+                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Color(0xFFE0E0E0))),
+                                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.green)),
+                                      contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                                      filled: true,
+                                      fillColor: const Color(0xFFF8F8F8),
+                                    ),
+                                    keyboardType: TextInputType.number,
+                                  ),
+                                  const SizedBox(height: 36),
+                                  // Botón guardar
+                                  SizedBox(
+                                    width: double.infinity,
+                                    height: 54,
+                                    child: ElevatedButton.icon(
+                                      onPressed: _saveProduct,
+                                      icon: const Icon(Icons.save_alt, size: 22),
+                                      label: const Text('Guardar producto', style: TextStyle(fontSize: 18)),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.green.shade700,
+                                        foregroundColor: Colors.white,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                        padding: const EdgeInsets.symmetric(vertical: 16),
+                                        textStyle: const TextStyle(fontWeight: FontWeight.bold),
+                                        elevation: 0,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
           ],
-        );
-      },
-    );
-  }
-
-  /// Botón de escaneo que se adapta al dispositivo
-  Widget _buildScanButton() {
-    return ResponsiveFormField(
-      label: 'Escaneo Rápido',
-      helperText: 'Escanea un código de barras para autocompletar campos',
-      prefix: Icon(Icons.qr_code_scanner, color: Colors.orange),
-      child: SizedBox(
-        width: double.infinity,
-        child: ElevatedButton.icon(
-          onPressed: _scanBarcode,
-          icon: const Icon(Icons.qr_code_scanner),
-          label: Text(Responsive.isMobile(context) 
-              ? 'Escanear Código' 
-              : 'Escanear Código de Barras'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.orange,
-            foregroundColor: Colors.white,
-            padding: EdgeInsets.symmetric(
-              vertical: Responsive.isMobile(context) ? 16 : 12,
-            ),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
         ),
       ),
-    );
-  }
-
-  /// Información básica del producto (nombre, descripción, precio)
-  Widget _buildBasicInfoSection() {
-    return Column(
-      children: [
-        ResponsiveFormField(
-          label: 'Nombre del Producto',
-          isRequired: true,
-          helperText: 'Nombre descriptivo del producto',
-          child: TextFormField(
-            controller: _nameController,
-            decoration: const InputDecoration(
-              hintText: 'Ej: Aceite para Motor 20W-50',
-              border: OutlineInputBorder(),
-            ),
-            validator: (value) {
-              if (value == null || value.trim().isEmpty) {
-                return 'El nombre es requerido';
-              }
-              return null;
-            },
-          ),
-        ),
-        
-        ResponsiveFormField(
-          label: 'Descripción',
-          isRequired: true,
-          helperText: 'Descripción detallada del producto',
-          child: TextFormField(
-            controller: _descriptionController,
-            decoration: const InputDecoration(
-              hintText: 'Describe las características principales del producto',
-              border: OutlineInputBorder(),
-            ),
-            maxLines: Responsive.isMobile(context) ? 2 : 3,
-            validator: (value) {
-              if (value == null || value.trim().isEmpty) {
-                return 'La descripción es requerida';
-              }
-              return null;
-            },
-          ),
-        ),
-        
-        ResponsiveFormField(
-          label: 'Precio de Venta',
-          isRequired: true,
-          helperText: 'Precio en pesos colombianos',
-          prefix: Icon(Icons.attach_money, color: Colors.green),
-          child: TextFormField(
-            controller: _priceController,
-            decoration: const InputDecoration(
-              hintText: '0.00',
-              border: OutlineInputBorder(),
-              prefixText: '\$ ',
-            ),
-            keyboardType: TextInputType.number,
-            validator: (value) {
-              if (value == null || value.trim().isEmpty) {
-                return 'El precio es requerido';
-              }
-              if (double.tryParse(value) == null) {
-                return 'Ingresa un precio válido';
-              }
-              if (double.parse(value) <= 0) {
-                return 'El precio debe ser mayor a 0';
-              }
-              return null;
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// Sección de información de stock - responsive layout
-  Widget _buildStockSection() {
-    if (Responsive.isMobile(context)) {
-      // En móvil: campos apilados uno sobre otro
-      return Column(
-        children: [
-          ResponsiveFormField(
-            label: 'Stock Actual',
-            isRequired: true,
-            helperText: 'Cantidad disponible actualmente',
-            prefix: Icon(Icons.inventory, color: Colors.blue),
-            child: TextFormField(
-              controller: _stockController,
-              decoration: const InputDecoration(
-                hintText: '0',
-                border: OutlineInputBorder(),
-              ),
-              keyboardType: TextInputType.number,
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'El stock es requerido';
-                }
-                if (int.tryParse(value) == null) {
-                  return 'Ingresa un número válido';
-                }
-                if (int.parse(value) < 0) {
-                  return 'El stock no puede ser negativo';
-                }
-                return null;
-              },
-            ),
-          ),
-          ResponsiveFormField(
-            label: 'Stock Mínimo',
-            isRequired: true,
-            helperText: 'Alerta cuando el stock baje de este número',
-            child: TextFormField(
-              controller: _minStockController,
-              decoration: const InputDecoration(
-                hintText: '0',
-                border: OutlineInputBorder(),
-              ),
-              keyboardType: TextInputType.number,
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'El stock mínimo es requerido';
-                }
-                if (int.tryParse(value) == null) {
-                  return 'Ingresa un número válido';
-                }
-                if (int.parse(value) < 0) {
-                  return 'El stock mínimo no puede ser negativo';
-                }
-                return null;
-              },
-            ),
-          ),
-          ResponsiveFormField(
-            label: 'Stock Máximo',
-            isRequired: true,
-            helperText: 'Capacidad máxima de almacenamiento',
-            child: TextFormField(
-              controller: _maxStockController,
-              decoration: const InputDecoration(
-                hintText: '0',
-                border: OutlineInputBorder(),
-              ),
-              keyboardType: TextInputType.number,
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'El stock máximo es requerido';
-                }
-                if (int.tryParse(value) == null) {
-                  return 'Ingresa un número válido';
-                }
-                if (int.parse(value) < 0) {
-                  return 'El stock máximo no puede ser negativo';
-                }
-                return null;
-              },
-            ),
-          ),
-        ],
-      );
-    } else {
-      // En tablet/desktop: campos en fila
-      return ResponsiveFormField(
-        label: 'Gestión de Stock',
-        isRequired: true,
-        helperText: 'Configura los niveles de inventario',
-        prefix: Icon(Icons.inventory_2, color: Colors.blue),
-        child: Row(
-          children: [
-            Expanded(
-              child: TextFormField(
-                controller: _stockController,
-                decoration: const InputDecoration(
-                  labelText: 'Stock Actual',
-                  hintText: '0',
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.number,
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Requerido';
-                  }
-                  if (int.tryParse(value) == null) {
-                    return 'Número inválido';
-                  }
-                  if (int.parse(value) < 0) {
-                    return 'No puede ser negativo';
-                  }
-                  return null;
-                },
-              ),
-            ),
-            SizedBox(width: Responsive.getResponsiveSpacing(context)),
-            Expanded(
-              child: TextFormField(
-                controller: _minStockController,
-                decoration: const InputDecoration(
-                  labelText: 'Stock Mínimo',
-                  hintText: '0',
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.number,
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Requerido';
-                  }
-                  if (int.tryParse(value) == null) {
-                    return 'Número inválido';
-                  }
-                  if (int.parse(value) < 0) {
-                    return 'No puede ser negativo';
-                  }
-                  return null;
-                },
-              ),
-            ),
-            SizedBox(width: Responsive.getResponsiveSpacing(context)),
-            Expanded(
-              child: TextFormField(
-                controller: _maxStockController,
-                decoration: const InputDecoration(
-                  labelText: 'Stock Máximo',
-                  hintText: '0',
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.number,
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Requerido';
-                  }
-                  if (int.tryParse(value) == null) {
-                    return 'Número inválido';
-                  }
-                  if (int.parse(value) < 0) {
-                    return 'No puede ser negativo';
-                  }
-                  return null;
-                },
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-  }
-
-  /// Sección de categoría y código de barras
-  Widget _buildCategoryAndBarcodeSection() {
-    return Column(
-      children: [
-        ResponsiveFormField(
-          label: 'Categoría',
-          isRequired: true,
-          helperText: 'Selecciona la categoría del producto',
-          prefix: Icon(Icons.category, color: Colors.amber),
-          child: DropdownButtonFormField<String>(
-            decoration: const InputDecoration(
-              hintText: 'Selecciona una categoría',
-              border: OutlineInputBorder(),
-            ),
-            value: _selectedCategory,
-            items: _categories.map((String category) {
-              return DropdownMenuItem<String>(
-                value: category,
-                child: Text(category),
-              );
-            }).toList(),
-            onChanged: (String? newValue) {
-              setState(() {
-                _selectedCategory = newValue;
-              });
-            },
-            validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Por favor seleccione una categoría';
-              }
-              return null;
-            },
-          ),
-        ),
-        
-        ResponsiveFormField(
-          label: 'Código de Barras',
-          helperText: 'Opcional - puedes ingresarlo manualmente o escanearlo',
-          prefix: Icon(Icons.qr_code, color: Colors.grey[600]),
-          child: TextFormField(
-            controller: _barcodeController,
-            decoration: const InputDecoration(
-              hintText: 'Ej: 7701234567890',
-              border: OutlineInputBorder(),
-            ),
-            keyboardType: TextInputType.number,
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// Botones de acción responsive
-  Widget _buildActionButtons() {
-    return ResponsiveButtonRow(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        if (!Responsive.isMobile(context))
-          OutlinedButton.icon(
-            onPressed: () => Navigator.pop(context),
-            icon: const Icon(Icons.cancel),
-            label: const Text('Cancelar'),
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 24,
-                vertical: 16,
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          ),
-        ElevatedButton.icon(
-          onPressed: _saveProduct,
-          icon: const Icon(Icons.save),
-          label: Text(Responsive.isMobile(context) 
-              ? 'Guardar' 
-              : 'Guardar Producto'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.green,
-            foregroundColor: Colors.white,
-            padding: EdgeInsets.symmetric(
-              horizontal: Responsive.isMobile(context) ? 32 : 24,
-              vertical: 16,
-            ),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-        ),
-      ],
     );
   }
 } 

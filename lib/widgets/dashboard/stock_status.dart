@@ -5,34 +5,57 @@ import '../../models/category.dart';
 import 'dashboard_card.dart';
 import '../../widgets/skeleton_loading.dart';
 
-class StockStatus extends StatelessWidget {
+class StockStatus extends StatefulWidget {
   final int? maxItems;
   const StockStatus({super.key, this.maxItems});
+
+  @override
+  State<StockStatus> createState() => _StockStatusState();
+}
+
+class _StockStatusState extends State<StockStatus> {
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Selector<DashboardViewModel, List>(
       selector: (_, vm) => vm.lowStockProductsSummary,
       builder: (context, lowStockProducts, _) {
-        final limitedLowStockProducts = maxItems != null
-            ? lowStockProducts.take(maxItems!).toList()
+        final limitedLowStockProducts = widget.maxItems != null
+            ? lowStockProducts.take(widget.maxItems!).toList()
             : lowStockProducts;
         final isMobile = MediaQuery.of(context).size.width < 600;
         if (isMobile) {
           return Container(
             padding: const EdgeInsets.all(16),
+            height: 80,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text('Productos con bajo stock', style: TextStyle(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
-                Text('Total: ${lowStockProducts.length}', style: const TextStyle(fontSize: 18, color: Colors.red)),
+                Text('Total:  lowStockProducts.length}', style: const TextStyle(fontSize: 18, color: Colors.red)),
               ],
             ),
           );
         }
-        return Container(
-          padding: const EdgeInsets.all(16),
+        if (limitedLowStockProducts.isEmpty) {
+          final isMobile = MediaQuery.of(context).size.width < 600;
+          return Container(
+            width: double.infinity,
+            height: isMobile ? 80 : 120,
+            alignment: Alignment.center,
+            child: Text('No hay productos con bajo stock', style: TextStyle(color: Colors.grey)),
+          );
+        }
+        // Desktop/tablet: expandir
+        return SizedBox.expand(
           child: _buildDesktopLayout(context, limitedLowStockProducts),
         );
       },
@@ -47,52 +70,84 @@ class StockStatus extends StatelessWidget {
     if (lowStockProducts.length <= maxItems) showAll = true;
     List<dynamic> visibleProducts = showAll ? lowStockProducts : lowStockProducts.take(maxItems).toList();
     return Container(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Lista de productos
-          Expanded(
-            child: visibleProducts.isEmpty
-                ? _buildEmptyState(context)
-                : ListView.builder(
-                    itemCount: visibleProducts.length,
-                    itemBuilder: (context, index) {
-                      final product = visibleProducts[index];
-                      return _buildEnhancedStockItem(context, product, index);
-                    },
-                  ),
-          ),
-          if (!showAll)
-            Center(
-              child: ElevatedButton(
-                onPressed: () => showDialog(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: const Text('Todos los productos con bajo stock'),
-                    content: SizedBox(
-                      width: 400,
-                      height: 400,
-                      child: ListView.builder(
-                        itemCount: lowStockProducts.length,
-                        itemBuilder: (context, index) {
-                          final product = lowStockProducts[index];
-                          return _buildEnhancedStockItem(context, product, index);
-                        },
-                      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      child: SizedBox(
+        height: 120,
+        child: visibleProducts.isEmpty
+            ? _buildEmptyState(context)
+            : Scrollbar(
+                thumbVisibility: true,
+                controller: _scrollController,
+                child: SingleChildScrollView(
+                  controller: _scrollController,
+                  child: Column(
+                    children: List.generate(
+                      visibleProducts.length,
+                      (index) {
+                        final product = visibleProducts[index];
+                        final isCritical = product.stock <= 5;
+                        return Container(
+                          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                          decoration: BoxDecoration(
+                            border: Border(
+                              bottom: BorderSide(
+                                color: Colors.grey.shade200,
+                                width: 1,
+                              ),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                isCritical ? Icons.warning : Icons.inventory,
+                                color: isCritical ? Colors.red : Colors.orange,
+                                size: 18,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  product.name,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w500,
+                                    color: Colors.grey.shade800,
+                                    fontSize: 14,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Text(
+                                'x${product.stock}',
+                                style: TextStyle(
+                                  color: isCritical ? Colors.red : Colors.orange,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: isCritical ? Colors.red.withOpacity(0.08) : Colors.orange.withOpacity(0.08),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  isCritical ? 'CRÍTICO' : 'BAJO',
+                                  style: TextStyle(
+                                    color: isCritical ? Colors.red : Colors.orange,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 10,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
                     ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text('Cerrar'),
-                      ),
-                    ],
                   ),
                 ),
-                child: const Text('Ver más'),
               ),
-            ),
-        ],
       ),
     );
   }
@@ -184,14 +239,18 @@ class StockStatus extends StatelessWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          'Stock: ${product.stock}',
-                          style: TextStyle(
-                            color: Colors.grey.shade600,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
+                        Expanded(
+                          child: Text(
+                            'Stock: ${product.stock}',
+                            style: TextStyle(
+                              color: Colors.grey.shade600,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
+                        const SizedBox(width: 8),
                         Text(
                           '${stockPercentage.toStringAsFixed(0)}%',
                           style: TextStyle(
@@ -232,13 +291,17 @@ class StockStatus extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      'Categoría: ${_getCategoryName(context, product.categoryId)}',
-                      style: TextStyle(
-                        color: Colors.grey.shade500,
-                        fontSize: 11,
+                    Expanded(
+                      child: Text(
+                        'Categoría: ${_getCategoryName(context, product.categoryId)}',
+                        style: TextStyle(
+                          color: Colors.grey.shade500,
+                          fontSize: 11,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                    const SizedBox(width: 8),
                     Text(
                       'Precio: \$${product.price.toStringAsFixed(2)}',
                       style: TextStyle(

@@ -40,47 +40,48 @@ class _DashboardCardState extends State<DashboardCard> {
   @override
   Widget build(BuildContext context) {
     final isWeb = !Responsive.isMobile(context);
-    
+    final cardHeight = isWeb ? 400.0 : null;
+
     return MouseRegion(
       onEnter: (_) => null, // No hacer nada en hover
       onExit: (_) => null, // No hacer nada en hover
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          color: isWeb ? null : Colors.white,
-          // Sin gradiente ni sombra ni efecto hover
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: widget.onTap,
+      child: SizedBox(
+        height: cardHeight,
+        child: Container(
+          decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
-            child: Container(
-              constraints: BoxConstraints(
-                minHeight: Responsive.isMobile(context) ? 180 : 200,
-                maxHeight: Responsive.isMobile(context) ? 350 : 400,
-              ),
-              padding: Responsive.getResponsivePadding(context),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Header mejorado
-                  _buildEnhancedHeader(context),
-                  
-                  Divider(
-                    height: Responsive.getResponsiveSpacing(context),
-                    thickness: 1,
-                    color: Colors.grey.shade200,
-                  ),
-                  
-                  // Contenido
-                  Flexible(
-                    child: widget.isLoading
-                        ? _buildLoadingState(context)
-                        : widget.child,
-                  ),
-                ],
+            color: isWeb ? null : Colors.white,
+            // Sin gradiente ni sombra ni efecto hover
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: widget.onTap,
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                constraints: BoxConstraints(
+                  minHeight: Responsive.isMobile(context) ? 180 : 200,
+                  maxHeight: Responsive.isMobile(context) ? 350 : 400,
+                ),
+                padding: Responsive.getResponsivePadding(context),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.max,
+                  children: [
+                    // Header mejorado
+                    _buildEnhancedHeader(context),
+                    Divider(
+                      height: Responsive.getResponsiveSpacing(context),
+                      thickness: 1,
+                      color: Colors.grey.shade200,
+                    ),
+                    Expanded(
+                      child: widget.isLoading
+                          ? _buildLoadingState(context)
+                          : widget.child,
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

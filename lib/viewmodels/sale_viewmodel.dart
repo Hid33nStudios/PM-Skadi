@@ -2,20 +2,19 @@ import 'package:flutter/foundation.dart' as foundation;
 import 'package:flutter/material.dart';
 import '../models/sale.dart';
 import '../models/sale_item.dart';
-import '../services/hybrid_data_service.dart';
+import '../services/firestore_data_service.dart';
 import '../services/auth_service.dart';
 import '../utils/error_handler.dart';
 import '../utils/error_cases.dart';
+import 'base_viewmodel.dart';
 
-class SaleViewModel extends foundation.ChangeNotifier {
-  final HybridDataService _dataService;
+class SaleViewModel extends BaseViewModel {
+  final FirestoreDataService _dataService;
   final AuthService _authService;
   
   List<Sale> _sales = [];
   Sale? _selectedSale;
   Map<String, dynamic> _saleStats = {};
-  bool _isLoading = false;
-  String? _error;
   AppErrorType? _errorType;
   AppErrorType? get errorType => _errorType;
   
@@ -32,8 +31,6 @@ class SaleViewModel extends foundation.ChangeNotifier {
   List<Sale> get sales => _sales;
   Sale? get selectedSale => _selectedSale;
   Map<String, dynamic> get saleStats => _saleStats;
-  bool get isLoading => _isLoading;
-  String? get error => _error;
   bool get hasMore => _hasMore;
   bool get isLoadingMore => _isLoadingMore;
 
@@ -47,40 +44,47 @@ class SaleViewModel extends foundation.ChangeNotifier {
     _onSaleAdded = null;
   }
 
-  Future<void> loadSales() async {
+  Future<void> loadSales({VoidCallback? onMigrate}) async {
+    // OPTIMIZACIÓN: No recargar si ya tenemos datos
+    if (_sales.isNotEmpty) {
+      print('📦 SaleViewModel: Ya hay ventas cargadas (${_sales.length}), usando datos existentes');
+      return;
+    }
+    
     try {
       print('🔄 [PRODUCCION] Iniciando carga de ventas...');
       print('🔄 [PRODUCCION] Usuario autenticado: ${_authService.currentUser?.uid ?? 'NO AUTENTICADO'}');
-      print('🔄 [PRODUCCION] Estado inicial - isLoading: $_isLoading');
+      print('🔄 [PRODUCCION] Estado inicial - isLoading: $isLoading');
       
-      _isLoading = true;
-      _error = null;
+      setLoading(true);
+      clearError();
       _errorType = null;
-      print('🔄 [PRODUCCION] Estado después de setear isLoading=true: $_isLoading');
+      print('🔄 [PRODUCCION] Estado después de setear isLoading=true: $isLoading');
       notifyListeners();
       print('🔄 [PRODUCCION] notifyListeners() llamado');
 
-      _sales = await _dataService.getAllSales();
+      _sales = await _dataService.getAllSales(onMigrate: onMigrate);
       print('✅ [PRODUCCION] Ventas cargadas: ${_sales.length}');
       for (var sale in _sales) {
-        print('  - Venta ${sale.id}: ${sale.amount} - ${sale.quantity} items');
+        final totalItems = sale.items.fold<int>(0, (sum, item) => sum + item.quantity);
+        print('  - Venta ${sale.id}: ${sale.total} - ${totalItems} items');
       }
       
       await _loadSaleStats();
       print('🔄 [PRODUCCION] Estadísticas cargadas');
       
-      _isLoading = false;
-      print('🔄 [PRODUCCION] Estado después de setear isLoading=false: $_isLoading');
+      setLoading(false);
+      print('🔄 [PRODUCCION] Estado después de setear isLoading=false: $isLoading');
       notifyListeners();
       print('✅ [PRODUCCION] notifyListeners() final llamado - Carga completada');
     } catch (e, stackTrace) {
       print('❌ [PRODUCCION] Error al cargar ventas: $e');
       print('❌ [PRODUCCION] Stack: $stackTrace');
       final appError = AppError.fromException(e, stackTrace);
-      _error = appError.message;
+      setError(appError.message);
       _errorType = appError.appErrorType;
-      _isLoading = false;
-      print('🔄 [PRODUCCION] Estado después de error - isLoading: $_isLoading');
+      setLoading(false);
+      print('🔄 [PRODUCCION] Estado después de error - isLoading: $isLoading');
       notifyListeners();
       print('❌ [PRODUCCION] notifyListeners() de error llamado');
     }
@@ -88,24 +92,24 @@ class SaleViewModel extends foundation.ChangeNotifier {
 
   Future<void> loadSale(String saleId) async {
     try {
-      _isLoading = true;
-      _error = null;
+      setLoading(true);
+      clearError();
       notifyListeners();
 
       _selectedSale = _sales.firstWhere((sale) => sale.id == saleId);
       
-      _isLoading = false;
+      setLoading(false);
       notifyListeners();
     } catch (e, stackTrace) {
-      _error = AppError.fromException(e, stackTrace).message;
-      _isLoading = false;
+      setError(AppError.fromException(e, stackTrace).message);
+      setLoading(false);
       notifyListeners();
     }
   }
 
   Future<bool> addSale(Sale sale) async {
     try {
-      print('🔄 SaleViewModel: Agregando venta: ${sale.amount}');
+      print('🔄 SaleViewModel: Agregando venta: ${sale.total}');
       print('📝 SaleViewModel: Datos de la venta: ${sale.toMap()}');
       
       print('🔄 SaleViewModel: Llamando a _dataService.createSale...');
@@ -113,7 +117,7 @@ class SaleViewModel extends foundation.ChangeNotifier {
       print('✅ SaleViewModel: _dataService.createSale completado');
       
       print('🔄 SaleViewModel: Recargando ventas...');
-      await loadSales();
+      await forceReloadSales();
       print('✅ SaleViewModel: Venta agregada exitosamente');
       
       // Notificar al dashboard que se agregó una venta
@@ -127,11 +131,44 @@ class SaleViewModel extends foundation.ChangeNotifier {
       print('❌ SaleViewModel: Error al agregar venta: $e');
       print('❌ SaleViewModel: Stack trace: $stackTrace');
       final appError = AppError.fromException(e, stackTrace);
-      _error = appError.message;
+      setError(appError.message);
       _errorType = appError.appErrorType;
-      print('❌ SaleViewModel: Error procesado: $_error');
+      print('❌ SaleViewModel: Error procesado: $error');
       notifyListeners();
       return false;
+    }
+  }
+
+  /// Método para forzar recarga de ventas después de cambios
+  Future<void> forceReloadSales() async {
+    try {
+      print('🔄 SaleViewModel: Forzando recarga de ventas...');
+      
+      // Limpiar cache del servicio si es posible
+      if (_dataService is dynamic && _dataService.runtimeType.toString().contains('Optimized')) {
+        try {
+          (_dataService as dynamic).clearCache();
+          print('🗑️ SaleViewModel: Cache limpiado para forzar recarga');
+        } catch (e) {
+          print('⚠️ SaleViewModel: No se pudo limpiar cache: $e');
+        }
+      }
+      
+      // Forzar recarga incluso si ya hay datos
+      _sales = [];
+      
+      // Esperar un momento para asegurar que Firestore haya procesado los cambios
+      await Future.delayed(const Duration(milliseconds: 1000));
+      
+      await loadSales();
+      
+      print('✅ SaleViewModel: Recarga forzada completada');
+    } catch (e, stackTrace) {
+      print('❌ SaleViewModel: Error en forceReloadSales: $e');
+      print(stackTrace);
+      final appError = AppError.fromException(e, stackTrace);
+      setError(appError.message);
+      _errorType = appError.appErrorType;
     }
   }
 
@@ -146,7 +183,7 @@ class SaleViewModel extends foundation.ChangeNotifier {
       return true;
     } catch (e, stackTrace) {
       final appError = AppError.fromException(e, stackTrace);
-      _error = appError.message;
+      setError(appError.message);
       _errorType = appError.appErrorType;
       notifyListeners();
       return false;
@@ -157,8 +194,9 @@ class SaleViewModel extends foundation.ChangeNotifier {
     if (query.isEmpty) return _sales;
     
     return _sales.where((sale) {
+      final productNames = sale.items.map((i) => i.productName.toLowerCase()).join(' ');
       return sale.id.toLowerCase().contains(query.toLowerCase()) ||
-             sale.productName.toLowerCase().contains(query.toLowerCase()) ||
+             productNames.contains(query.toLowerCase()) ||
              (sale.notes?.toLowerCase().contains(query.toLowerCase()) ?? false);
     }).toList();
   }
@@ -194,8 +232,8 @@ class SaleViewModel extends foundation.ChangeNotifier {
       int totalItemsSold = 0;
 
       for (var sale in _sales) {
-        totalRevenue += sale.amount;
-        totalItemsSold += sale.quantity;
+        totalRevenue += sale.total;
+        totalItemsSold += sale.items.fold<int>(0, (sum, item) => sum + item.quantity);
       }
 
       _saleStats = {
@@ -210,8 +248,7 @@ class SaleViewModel extends foundation.ChangeNotifier {
   }
 
   void clearError() {
-    _error = null;
-    notifyListeners();
+    super.clearError();
   }
 
   void clearSelectedSale() {
@@ -242,7 +279,7 @@ class SaleViewModel extends foundation.ChangeNotifier {
       _offset += uniqueNewSales.length;
       await _loadSaleStats();
     } catch (e, stackTrace) {
-      _error = AppError.fromException(e, stackTrace).message;
+      setError(AppError.fromException(e, stackTrace).message);
     } finally {
       _isLoadingMore = false;
       notifyListeners();

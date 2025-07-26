@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../viewmodels/theme_viewmodel.dart';
 import '../viewmodels/sync_viewmodel.dart';
-import '../viewmodels/migration_viewmodel.dart';
-import '../widgets/sync_status_widget.dart';
+
+// import '../widgets/sync_status_widget.dart'; // Comentado temporalmente
 import '../config/app_config.dart';
 import '../router/app_router.dart';
 

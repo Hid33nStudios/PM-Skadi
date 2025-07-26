@@ -256,7 +256,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         context,
         'Total Ventas',
         saleVM.sales.length.toString(),
-        '\$${saleVM.sales.fold<double>(0, (sum, sale) => sum + sale.amount).toStringAsFixed(2)}',
+        '\$${saleVM.sales.fold<double>(0, (sum, sale) => sum + sale.total).toStringAsFixed(2)}',
         Icons.shopping_cart,
         Colors.green,
       ),
@@ -378,7 +378,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         'date': date,
         'total': daySales.fold<double>(
           0,
-          (sum, sale) => sum + sale.amount,
+          (sum, sale) => sum + sale.total,
         ),
       });
     }
@@ -479,20 +479,19 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
 
   Widget _buildTopProducts(BuildContext context, SaleViewModel saleVM) {
     final productSales = <String, Map<String, dynamic>>{};
-    
     for (var sale in saleVM.sales) {
-      if (!productSales.containsKey(sale.productId)) {
-        productSales[sale.productId] = {
-          'name': sale.productName,
-          'quantity': 0,
-          'total': 0.0,
-        };
+      for (var item in sale.items) {
+        if (!productSales.containsKey(item.productId)) {
+          productSales[item.productId] = {
+            'name': item.productName,
+            'quantity': 0,
+            'total': 0.0,
+          };
+        }
+        productSales[item.productId]!['quantity'] += item.quantity;
+        productSales[item.productId]!['total'] += item.subtotal;
       }
-      
-      productSales[sale.productId]!['quantity'] += sale.quantity;
-      productSales[sale.productId]!['total'] += sale.amount;
     }
-
     final sortedProducts = productSales.entries.toList()
       ..sort((a, b) => b.value['total'].compareTo(a.value['total']));
 

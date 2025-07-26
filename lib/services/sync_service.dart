@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'hybrid_data_service.dart';
+import 'firestore_data_service.dart';
 import '../models/product.dart';
 import '../models/category.dart';
 import '../models/sale.dart';
@@ -13,7 +13,7 @@ import '../utils/error_handler.dart';
 class SyncService {
   final FirebaseFirestore _firestore;
   final FirebaseAuth _auth;
-  final HybridDataService _hybridService;
+  final FirestoreDataService _hybridService;
   final Connectivity _connectivity;
   
   // Streams para sincronización en tiempo real

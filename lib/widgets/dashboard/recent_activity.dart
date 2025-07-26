@@ -4,242 +4,157 @@ import '../../models/sale.dart';
 import '../../viewmodels/dashboard_viewmodel.dart';
 import 'dashboard_card.dart';
 import '../../widgets/skeleton_loading.dart';
+import '../../utils/validators.dart';
 
-class RecentActivity extends StatelessWidget {
+class RecentActivity extends StatefulWidget {
   final int? maxItems;
-  const RecentActivity({super.key, this.maxItems});
+  final double? height;
+  const RecentActivity({super.key, this.maxItems, this.height});
+
+  @override
+  State<RecentActivity> createState() => _RecentActivityState();
+}
+
+class _RecentActivityState extends State<RecentActivity> {
+  final ScrollController _verticalController = ScrollController();
+
+  @override
+  void dispose() {
+    _verticalController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Selector<DashboardViewModel, List>(
-      selector: (_, vm) => vm.recentSalesSummary,
-      builder: (context, recentSales, _) {
-        if (recentSales.isEmpty) {
-          return Center(child: Text('No hay actividad reciente.'));
+    return Selector<DashboardViewModel, List<Sale>>(
+      selector: (_, vm) => vm.dashboardData?.sales ?? [],
+      builder: (context, sales, _) {
+        if (sales.isEmpty) {
+          final isMobile = MediaQuery.of(context).size.width < 600;
+          return Container(
+            alignment: Alignment.center,
+            height: isMobile ? 80 : 120,
+            child: Text('No hay actividad reciente', style: TextStyle(color: Colors.grey)),
+          );
         }
-        return ListView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: recentSales.length,
-          itemBuilder: (context, index) {
-            final sale = recentSales[index];
-            return ListTile(
-              leading: Icon(Icons.shopping_cart, color: Colors.green),
-              title: Text(sale.productName),
-              subtitle: Text('Cantidad: ${sale.quantity} - Monto: \$${(sale.amount / sale.quantity).toStringAsFixed(2)}'),
-              trailing: Text('${sale.date.day}/${sale.date.month}/${sale.date.year}'),
-            );
+        final items = widget.maxItems != null ? sales.take(widget.maxItems!).toList() : sales;
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final isMobile = MediaQuery.of(context).size.width < 600;
+            if (isMobile) {
+              return Container(
+                width: double.infinity,
+                height: 120,
+                child: ListView(
+                  padding: EdgeInsets.zero,
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  children: items.map((sale) {
+                    final totalProductos = sale.items.fold<int>(0, (sum, item) => sum + item.quantity);
+                    final totalVenta = sale.total;
+                    final cliente = (sale.customerName.isNotEmpty) ? sale.customerName : 'Venta';
+                    final fecha = '${sale.date.day.toString().padLeft(2, '0')}/${sale.date.month.toString().padLeft(2, '0')}/${sale.date.year}';
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 0),
+                      child: ExpansionTile(
+                        tilePadding: const EdgeInsets.symmetric(horizontal: 8),
+                        title: Row(
+                          children: [
+                            Icon(Icons.receipt_long, color: Colors.blueGrey),
+                            const SizedBox(width: 8),
+                            Expanded(child: Text(cliente, style: const TextStyle(fontWeight: FontWeight.w600))),
+                            const SizedBox(width: 8),
+                            Text('Total: ' + formatPrice(totalVenta), style: const TextStyle(color: Colors.green)),
+                          ],
+                        ),
+                        subtitle: Row(
+                          children: [
+                            Icon(Icons.calendar_today, size: 16, color: Colors.grey.shade400),
+                            const SizedBox(width: 4),
+                            Text(fecha, style: const TextStyle(fontSize: 13)),
+                            const SizedBox(width: 16),
+                            Icon(Icons.shopping_bag, size: 16, color: Colors.orange.shade400),
+                            const SizedBox(width: 4),
+                            Text('$totalProductos productos', style: const TextStyle(fontSize: 13)),
+                          ],
+                        ),
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: sale.items.map((item) => ListTile(
+                                dense: true,
+                                leading: const Icon(Icons.check_circle_outline, color: Colors.teal),
+                                title: Text(item.productName, style: const TextStyle(fontWeight: FontWeight.w500)),
+                                subtitle: Text('Cantidad: ${item.quantity}'),
+                                trailing: Text(formatPrice(item.subtotal), style: const TextStyle(color: Colors.blueGrey)),
+                              )).toList(),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
+              );
+            } else {
+              return SizedBox.expand(
+                child: ListView(
+                  padding: EdgeInsets.zero,
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  children: items.map((sale) {
+                    final totalProductos = sale.items.fold<int>(0, (sum, item) => sum + item.quantity);
+                    final totalVenta = sale.total;
+                    final cliente = (sale.customerName.isNotEmpty) ? sale.customerName : 'Venta';
+                    final fecha = '${sale.date.day.toString().padLeft(2, '0')}/${sale.date.month.toString().padLeft(2, '0')}/${sale.date.year}';
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 0),
+                      child: ExpansionTile(
+                        tilePadding: const EdgeInsets.symmetric(horizontal: 8),
+                        title: Row(
+                          children: [
+                            Icon(Icons.receipt_long, color: Colors.blueGrey),
+                            const SizedBox(width: 8),
+                            Expanded(child: Text(cliente, style: const TextStyle(fontWeight: FontWeight.w600))),
+                            const SizedBox(width: 8),
+                            Text('Total: ' + formatPrice(totalVenta), style: const TextStyle(color: Colors.green)),
+                          ],
+                        ),
+                        subtitle: Row(
+                          children: [
+                            Icon(Icons.calendar_today, size: 16, color: Colors.grey.shade400),
+                            const SizedBox(width: 4),
+                            Text(fecha, style: const TextStyle(fontSize: 13)),
+                            const SizedBox(width: 16),
+                            Icon(Icons.shopping_bag, size: 16, color: Colors.orange.shade400),
+                            const SizedBox(width: 4),
+                            Text('$totalProductos productos', style: const TextStyle(fontSize: 13)),
+                          ],
+                        ),
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: sale.items.map((item) => ListTile(
+                                dense: true,
+                                leading: const Icon(Icons.check_circle_outline, color: Colors.teal),
+                                title: Text(item.productName, style: const TextStyle(fontWeight: FontWeight.w500)),
+                                subtitle: Text('Cantidad: ${item.quantity}'),
+                                trailing: Text(formatPrice(item.subtotal), style: const TextStyle(color: Colors.blueGrey)),
+                              )).toList(),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
+              );
+            }
           },
         );
       },
-    );
-  }
-
-  /// Layout para desktop
-  Widget _buildDesktopLayout(BuildContext context, List<Sale> recentSales) {
-    int maxItems = 10;
-    bool showAll = false;
-    if (recentSales.length <= maxItems) showAll = true;
-    List<Sale> visibleSales = showAll ? recentSales : recentSales.take(maxItems).toList();
-    return Container(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header mejorado
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                '',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.grey.shade800,
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.blue.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.blue.withOpacity(0.3)),
-                ),
-                child: Text(
-                  'Últimos 7 días',
-                  style: TextStyle(
-                    color: Colors.blue.shade700,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          
-          const SizedBox(height: 16),
-          
-          // Lista de actividades
-          Expanded(
-            child: visibleSales.isEmpty
-                ? _buildEmptyState(context)
-                : ListView.builder(
-                    itemCount: visibleSales.length,
-                    itemBuilder: (context, index) {
-                      final sale = visibleSales[index];
-                      return _buildEnhancedActivityItem(context, sale, index);
-                    },
-                  ),
-          ),
-          if (!showAll)
-            Center(
-              child: ElevatedButton(
-                onPressed: () => showDialog(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: const Text('Toda la actividad reciente'),
-                    content: SizedBox(
-                      width: 400,
-                      height: 400,
-                      child: ListView.builder(
-                        itemCount: recentSales.length,
-                        itemBuilder: (context, index) {
-                          final sale = recentSales[index];
-                          return _buildEnhancedActivityItem(context, sale, index);
-                        },
-                      ),
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text('Cerrar'),
-                      ),
-                    ],
-                  ),
-                ),
-                child: const Text('Ver más'),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  /// Item de actividad mejorado para web
-  Widget _buildEnhancedActivityItem(BuildContext context, Sale sale, int index) {
-    final isEven = index % 2 == 0;
-    
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Row(
-        children: [
-          // Icono con color dinámico
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.green.withOpacity(0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.shopping_cart,
-              color: Colors.green,
-              size: 20,
-            ),
-          ),
-          
-          const SizedBox(width: 16),
-          
-          // Contenido
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        sale.productName,
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.grey.shade800,
-                          fontSize: 14,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.green.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        'VENTA',
-                        style: TextStyle(
-                          color: Colors.green,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 10,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                
-                const SizedBox(height: 4),
-                
-                Row(
-                  children: [
-                    Text(
-                      'Cantidad: ${sale.quantity}',
-                      style: TextStyle(
-                        color: Colors.grey.shade600,
-                        fontSize: 12,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Text(
-                      'Precio: \$${(sale.amount / sale.quantity).toStringAsFixed(2)}',
-                      style: TextStyle(
-                        color: Colors.grey.shade600,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-                
-                const SizedBox(height: 4),
-                
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      sale.formattedDate,
-                      style: TextStyle(
-                        color: Colors.grey.shade500,
-                        fontSize: 11,
-                        fontStyle: FontStyle.italic,
-                      ),
-                    ),
-                    Text(
-                      sale.formattedTotal,
-                      style: TextStyle(
-                        color: Colors.green.shade700,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -282,4 +197,22 @@ class RecentActivity extends StatelessWidget {
       ),
     );
   }
+} 
+
+// Clase auxiliar para mostrar cada producto vendido en la actividad reciente
+class _RecentProductSale {
+  final String productName;
+  final int quantity;
+  final double unitPrice;
+  final double subtotal;
+  final DateTime saleDate;
+  final String saleId;
+  _RecentProductSale({
+    required this.productName,
+    required this.quantity,
+    required this.unitPrice,
+    required this.subtotal,
+    required this.saleDate,
+    required this.saleId,
+  });
 } 

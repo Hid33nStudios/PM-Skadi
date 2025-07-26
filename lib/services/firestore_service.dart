@@ -9,23 +9,24 @@ class FirestoreService {
   final FirebaseFirestore _firestore;
   final AuthService _authService;
 
-  FirestoreService(this._authService, [FirebaseFirestore? firestore]) 
+  FirestoreService(this._authService, [FirebaseFirestore? firestore])
       : _firestore = firestore ?? FirebaseFirestore.instance;
 
-  String get _userId => _authService.currentUser?.uid ?? '';
+  FirebaseFirestore get firestore => _firestore;
+  String get userId => _authService.currentUser?.uid ?? '';
 
   // Referencias a las subcolecciones - Cambiado de 'users' a 'pm'
-  CollectionReference get _userProductsRef => 
-      _firestore.collection('pm').doc(_userId).collection('products');
-  
-  CollectionReference get _userCategoriesRef => 
-      _firestore.collection('pm').doc(_userId).collection('categories');
-  
-  CollectionReference get _userSalesRef => 
-      _firestore.collection('pm').doc(_userId).collection('sales');
-  
-  CollectionReference get _userMovementsRef => 
-      _firestore.collection('pm').doc(_userId).collection('movements');
+  CollectionReference get _userProductsRef =>
+      _firestore.collection('pm').doc(userId).collection('products');
+
+  CollectionReference get _userCategoriesRef =>
+      _firestore.collection('pm').doc(userId).collection('categories');
+
+  CollectionReference get _userSalesRef =>
+      _firestore.collection('pm').doc(userId).collection('sales');
+
+  CollectionReference get _userMovementsRef =>
+      _firestore.collection('pm').doc(userId).collection('movements');
 
   // Métodos para Productos
   Future<List<Product>> getProducts() async {
@@ -79,21 +80,21 @@ class FirestoreService {
   Future<List<Category>> getCategories() async {
     try {
       print('🔄 FirestoreService: Obteniendo categorías...');
-      print('📊 FirestoreService: UserID: $_userId');
+      print('📊 FirestoreService: UserID: userId');
       print('📊 FirestoreService: Referencia: ${_userCategoriesRef.path}');
-      
+
       final snapshot = await _userCategoriesRef.get();
       print('📊 FirestoreService: Documentos encontrados: ${snapshot.docs.length}');
-      
+
       final categories = snapshot.docs
           .map((doc) => Category.fromMap(doc.data() as Map<String, dynamic>, doc.id))
           .toList();
-      
+
       print('📊 FirestoreService: Categorías procesadas: ${categories.length}');
       for (var category in categories) {
         print('  - ${category.name} (ID: ${category.id})');
       }
-      
+
       return categories;
     } catch (e) {
       print('❌ FirestoreService: Error al obtener categorías: $e');
@@ -147,6 +148,51 @@ class FirestoreService {
       return snapshot.docs
           .map((doc) => Sale.fromMap(doc.data() as Map<String, dynamic>, doc.id))
           .toList();
+    } catch (e) {
+      throw Exception('Error al obtener ventas: $e');
+    }
+  }
+
+  /// Obtener todas las ventas con migración automática
+  Future<List<Sale>> getAllSales({void Function()? onMigrate}) async {
+    try {
+      final snapshot = await _userSalesRef.orderBy('date', descending: true).get();
+      final List<Sale> sales = [];
+      for (final doc in snapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        bool needsUpdate = false;
+        final corrected = Map<String, dynamic>.from(data);
+        if (corrected['notes'] == null) {
+          corrected['notes'] = '';
+          needsUpdate = true;
+        }
+        if (corrected['customerName'] == null) {
+          corrected['customerName'] = 'Sin cliente';
+          needsUpdate = true;
+        }
+        if (corrected['date'] == null) {
+          corrected['date'] = DateTime.now().toIso8601String();
+          needsUpdate = true;
+        }
+        if (corrected['total'] == null) {
+          corrected['total'] = 0;
+          needsUpdate = true;
+        }
+        if (corrected['userId'] == null) {
+          corrected['userId'] = '<desconocido>';
+          needsUpdate = true;
+        }
+        if (corrected['items'] == null) {
+          corrected['items'] = [];
+          needsUpdate = true;
+        }
+        if (needsUpdate) {
+          await _userSalesRef.doc(doc.id).set(corrected);
+        }
+        sales.add(Sale.fromMap(corrected, doc.id));
+      }
+      if (onMigrate != null) onMigrate();
+      return sales;
     } catch (e) {
       throw Exception('Error al obtener ventas: $e');
     }

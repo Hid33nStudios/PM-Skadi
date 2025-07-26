@@ -1,15 +1,16 @@
 import 'package:flutter/foundation.dart';
 import 'dart:async';
 import '../services/sync_service.dart';
-import '../services/hybrid_data_service.dart';
+import '../services/firestore_data_service.dart';
 import '../utils/error_handler.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../utils/error_cases.dart';
+import 'base_viewmodel.dart';
 
-class SyncViewModel extends ChangeNotifier {
+class SyncViewModel extends BaseViewModel {
   final SyncService _syncService;
-  final HybridDataService _hybridService;
+  final FirestoreDataService _hybridService;
 
   AppErrorType? _errorType;
   AppErrorType? get errorType => _errorType;
@@ -27,6 +28,11 @@ class SyncViewModel extends ChangeNotifier {
   DateTime? _lastFirebaseCheck;
   bool _lastFirebaseCheckResult = true;
   bool isInitialSyncDone = false;
+  
+  // Control de loops
+  bool _isUpdating = false;
+  DateTime? _lastUpdateTime;
+  static const Duration _minUpdateInterval = Duration(seconds: 30);
 
   // Getters
   bool get isOnline => _isOnline;
@@ -43,15 +49,32 @@ class SyncViewModel extends ChangeNotifier {
       await _updateSyncStatus();
       await checkFirebaseConnection(force: true);
       
-      // Configurar timer para actualizar estado
+      // Configurar timer para actualizar estado (menos frecuente)
       _startStatusTimer();
     } catch (e) {
       throw AppError.fromException(e);
     }
   }
 
-  /// Actualizar estado de sincronización
+  /// Actualizar estado de sincronización con control de loops
   Future<void> _updateSyncStatus() async {
+    // Evitar actualizaciones simultáneas
+    if (_isUpdating) {
+      print('🔄 SyncViewModel: Actualización en progreso, saltando...');
+      return;
+    }
+    
+    // Evitar actualizaciones muy frecuentes
+    final now = DateTime.now();
+    if (_lastUpdateTime != null && 
+        now.difference(_lastUpdateTime!) < _minUpdateInterval) {
+      print('🔄 SyncViewModel: Actualización muy reciente, saltando...');
+      return;
+    }
+    
+    _isUpdating = true;
+    _lastUpdateTime = now;
+    
     try {
       print('🔄 SyncViewModel: Actualizando estado de sincronización...');
       
@@ -69,6 +92,7 @@ class SyncViewModel extends ChangeNotifier {
           ? DateTime.parse(hybridStatus['lastSync'] as String)
           : null;
       final newPendingChangesCount = hybridStatus['pendingOperations'] as int;
+      
       bool changed = false;
       if (_isOnline != newIsOnline) { _isOnline = newIsOnline; changed = true; }
       if (_isSyncing != newIsSyncing) { _isSyncing = newIsSyncing; changed = true; }
@@ -84,6 +108,7 @@ class SyncViewModel extends ChangeNotifier {
       // Obtener estadísticas de la base de datos local
       final stats = await _hybridService.getStats();
       print('📊 SyncViewModel: Estadísticas: $stats');
+      
       // Marcar sincronización inicial como lista SIEMPRE tras la primera llamada exitosa
       if (!isInitialSyncDone) {
         isInitialSyncDone = true;
@@ -92,7 +117,7 @@ class SyncViewModel extends ChangeNotifier {
         if (_isOnline && _isFirebaseConnected) {
           print('✅ SyncViewModel: Estado online y Firebase conectado - marcando como sincronizado');
         }
-        notifyListeners();
+        changed = true; // Forzar notificación para el estado inicial
       }
       
       // Si hay usuario autenticado y está online, marcar como sincronizado
@@ -100,10 +125,16 @@ class SyncViewModel extends ChangeNotifier {
       if (uid != null && _isOnline && _isFirebaseConnected && _pendingChangesCount == 0) {
         print('✅ SyncViewModel: Usuario autenticado, online y sin pendientes - estado verde');
       }
-      if (changed) notifyListeners();
+      
+      // Solo notificar si hubo cambios
+      if (changed) {
+        notifyListeners();
+      }
     } catch (e) {
       print('❌ SyncViewModel: Error actualizando estado: $e');
       throw AppError.fromException(e);
+    } finally {
+      _isUpdating = false;
     }
   }
 
@@ -164,14 +195,14 @@ class SyncViewModel extends ChangeNotifier {
     print('📊 SyncViewModel: Estado de conexión Firebase: $_isFirebaseConnected');
   }
 
-  /// Iniciar timer de actualización de estado
+  /// Iniciar timer de actualización de estado (más frecuente)
   void _startStatusTimer() {
-    // Actualizar estado cada 2 minutos (menos frecuente)
-    _statusTimer = Timer.periodic(const Duration(minutes: 2), (_) {
+    // Actualizar estado cada 1 minuto (más frecuente)
+    _statusTimer = Timer.periodic(const Duration(minutes: 1), (_) {
       _updateSyncStatus();
-      // Solo verificar Firebase cada 5 minutos
+      // Solo verificar Firebase cada 2 minutos
       if (_lastFirebaseCheck == null || 
-          DateTime.now().difference(_lastFirebaseCheck!).inMinutes >= 5) {
+          DateTime.now().difference(_lastFirebaseCheck!).inMinutes >= 2) {
         checkFirebaseConnection();
       }
     });

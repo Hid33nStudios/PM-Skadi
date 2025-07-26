@@ -58,6 +58,28 @@ class DashboardData {
       'categories': categories.map((e) => e.toMap()).toList(),
     };
   }
+
+  DashboardData copyWith({
+    int? totalProducts,
+    int? totalSales,
+    double? totalRevenue,
+    int? totalCategories,
+    List<Movement>? recentMovements,
+    List<Product>? products,
+    List<Sale>? sales,
+    List<app_category.Category>? categories,
+  }) {
+    return DashboardData(
+      totalProducts: totalProducts ?? this.totalProducts,
+      totalSales: totalSales ?? this.totalSales,
+      totalRevenue: totalRevenue ?? this.totalRevenue,
+      totalCategories: totalCategories ?? this.totalCategories,
+      recentMovements: recentMovements ?? this.recentMovements,
+      products: products ?? this.products,
+      sales: sales ?? this.sales,
+      categories: categories ?? this.categories,
+    );
+  }
 }
 
 class SalesData {

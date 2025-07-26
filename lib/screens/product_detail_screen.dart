@@ -14,6 +14,7 @@ import '../theme/responsive.dart';
 import '../router/app_router.dart';
 import '../utils/error_cases.dart';
 import '../viewmodels/dashboard_viewmodel.dart';
+import '../utils/validators.dart';
 
 class ProductDetailScreen extends StatefulWidget {
   final String productId;
@@ -538,7 +539,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         ),
         const SizedBox(height: 16),
         _buildInfoCard(theme, [
-          _buildInfoRow('Precio', '\$${product.price.toStringAsFixed(2)}'),
+          _buildInfoRow('Precio', '[${formatPrice(product.price)}'),
           _buildInfoRow('Stock Mínimo', product.minStock.toString()),
           _buildInfoRow('Stock Máximo', product.maxStock.toString()),
           if (product.description.isNotEmpty)

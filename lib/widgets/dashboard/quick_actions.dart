@@ -3,6 +3,8 @@ import 'dashboard_card.dart';
 import 'barcode_quick_action.dart';
 import '../../theme/responsive.dart';
 import '../../router/app_router.dart';
+import '../../viewmodels/dashboard_viewmodel.dart';
+import 'package:provider/provider.dart';
 
 class QuickActions extends StatelessWidget {
   final Function(int)? onNavigateToIndex;
@@ -14,12 +16,8 @@ class QuickActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DashboardCard(
-      title: 'Acciones Rápidas',
-      icon: Icons.flash_on,
-      iconColor: Colors.amber,
-      child: _buildResponsiveLayout(context),
-    );
+    // Las acciones rápidas son estáticas, así que siempre mostramos el layout
+    return _buildResponsiveLayout(context);
   }
 
   /// Layout responsive para las acciones rápidas
@@ -64,7 +62,7 @@ class QuickActions extends StatelessWidget {
                 'Nueva Venta',
                 Icons.add_shopping_cart,
                 Colors.green,
-                () => context.goToAddSale(),
+                () => context.goToNewSale(),
                 isPrimary: true,
               ),
             ),
@@ -137,88 +135,95 @@ class QuickActions extends StatelessWidget {
   Widget _buildDesktopLayout(BuildContext context) {
     return Container(
       width: double.infinity,
-      height: double.infinity,
       padding: const EdgeInsets.all(8),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           // Primera fila: 3 acciones principales
-          Expanded(
-            child: Row(
-              children: [
-                Expanded(
-                  child: _buildPremiumActionButton(
-                    context,
-                    'Nueva Venta',
-                    Icons.add_shopping_cart,
-                    Colors.green,
-                    () => context.goToAddSale(),
-                    isPrimary: true,
-                  ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              Expanded(
+                child: _buildPremiumActionButton(
+                  context,
+                  'Nueva Venta',
+                  Icons.add_shopping_cart,
+                  Colors.green,
+                  () => context.goToNewSale(),
+                  isPrimary: true,
+                  iconSize: 28, // Antes: 38
+                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8), // Antes: vertical: 18
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _buildPremiumActionButton(
-                    context,
-                    'Nuevo Producto',
-                    Icons.add_box,
-                    Colors.blue,
-                    () => context.goToAddProduct(),
-                    isPrimary: true,
-                  ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildPremiumActionButton(
+                  context,
+                  'Nuevo Producto',
+                  Icons.add_box,
+                  Colors.blue,
+                  () => context.goToAddProduct(),
+                  isPrimary: true,
+                  iconSize: 28, // Antes: 38
+                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8), // Antes: vertical: 18
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _buildPremiumActionButton(
-                    context,
-                    'Añadir Categoría',
-                    Icons.category,
-                    Colors.amber,
-                    () => context.goToAddCategory(),
-                    isPrimary: true,
-                  ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildPremiumActionButton(
+                  context,
+                  'Añadir Categoría',
+                  Icons.category,
+                  Colors.amber,
+                  () => context.goToAddCategory(),
+                  isPrimary: true,
+                  iconSize: 28, // Antes: 38
+                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8), // Antes: vertical: 18
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-          
-          const SizedBox(height: 8),
-          
+          const SizedBox(height: 8), // Antes: 16
           // Segunda fila: 3 acciones secundarias
-          Expanded(
-            child: Row(
-              children: [
-                Expanded(
-                  child: _buildPremiumActionButton(
-                    context,
-                    'Ver Movimientos',
-                    Icons.compare_arrows,
-                    Colors.teal,
-                    () => context.goToMovements(),
-                  ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              Expanded(
+                child: _buildPremiumActionButton(
+                  context,
+                  'Ver Movimientos',
+                  Icons.compare_arrows,
+                  Colors.teal,
+                  () => context.goToMovements(),
+                  iconSize: 22, // Antes: 34
+                  padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8), // Antes: vertical: 14
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _buildPremiumActionButton(
-                    context,
-                    'Ver Productos',
-                    Icons.inventory,
-                    Colors.orange,
-                    () => context.goToProducts(),
-                  ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildPremiumActionButton(
+                  context,
+                  'Ver Productos',
+                  Icons.inventory,
+                  Colors.orange,
+                  () => context.goToProducts(),
+                  iconSize: 22, // Antes: 34
+                  padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8), // Antes: vertical: 14
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _buildPremiumActionButton(
-                    context,
-                    'Ver Ventas',
-                    Icons.receipt_long,
-                    Colors.purple,
-                    () => context.goToSales(),
-                  ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildPremiumActionButton(
+                  context,
+                  'Ver Ventas',
+                  Icons.receipt_long,
+                  Colors.purple,
+                  () => context.goToSales(),
+                  iconSize: 22, // Antes: 34
+                  padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8), // Antes: vertical: 14
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ],
       ),
@@ -233,7 +238,7 @@ class QuickActions extends StatelessWidget {
         'Nueva Venta',
         Icons.add_shopping_cart,
         Colors.green,
-        () => context.goToAddSale(),
+        () => context.goToNewSale(),
         isPrimary: true,
       ),
       _buildModernActionButton(
@@ -275,17 +280,20 @@ class QuickActions extends StatelessWidget {
       ),
     ];
 
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: columns,
-        mainAxisSpacing: 3,
-        crossAxisSpacing: 3,
-        childAspectRatio: Responsive.isMobile(context) ? 1.8 : 1.0,
+    return SizedBox(
+      height: 120,
+      child: GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: columns,
+          mainAxisSpacing: 3,
+          crossAxisSpacing: 3,
+          childAspectRatio: Responsive.isMobile(context) ? 1.8 : 1.0,
+        ),
+        itemCount: actions.length,
+        itemBuilder: (context, index) => actions[index],
       ),
-      itemCount: actions.length,
-      itemBuilder: (context, index) => actions[index],
     );
   }
 
@@ -357,6 +365,8 @@ class QuickActions extends StatelessWidget {
     Color color,
     VoidCallback onTap, {
     bool isPrimary = false,
+    double iconSize = 28,
+    EdgeInsets padding = const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
   }) {
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -364,7 +374,7 @@ class QuickActions extends StatelessWidget {
         onTap: onTap,
         child: Container(
           width: double.infinity,
-          height: double.infinity,
+          padding: padding,
           decoration: BoxDecoration(
             color: isPrimary ? color.withValues(alpha: 0.08) : Colors.white,
             borderRadius: BorderRadius.circular(16),
@@ -385,7 +395,7 @@ class QuickActions extends StatelessWidget {
                 child: Icon(
                   icon,
                   color: isPrimary ? color : color.withValues(alpha: 0.7),
-                  size: 28,
+                  size: iconSize,
                 ),
               ),
               const SizedBox(height: 8),

@@ -137,7 +137,11 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Total: \$${sale.amount.toStringAsFixed(2)}',
+              'Cliente: ${sale.customerName.isNotEmpty ? sale.customerName : 'Sin especificar'}',
+              style: const TextStyle(fontSize: 13, color: Colors.black87),
+            ),
+            Text(
+              'Total: \$${sale.total.toStringAsFixed(2)}',
               style: const TextStyle(
                 fontWeight: FontWeight.w500,
                 color: Colors.green,
@@ -175,7 +179,7 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
                     ),
                     const SizedBox(width: 8),
                     const Text(
-                      'Detalles del Producto',
+                      'Productos vendidos',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
@@ -184,15 +188,59 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
                   ],
                 ),
                 const SizedBox(height: 12),
-                _buildDetailRow('Producto', sale.productName),
-                _buildDetailRow('Cantidad', '${sale.quantity} unidades'),
-                _buildDetailRow('Precio Unitario', '\$${(sale.amount / sale.quantity).toStringAsFixed(2)}'),
-                _buildDetailRow('Total', '\$${sale.amount.toStringAsFixed(2)}', isTotal: true),
-                if (sale.notes != null && sale.notes!.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  _buildDetailRow('Notas', sale.notes!),
-                ],
-                const SizedBox(height: 8),
+                // Tabla de productos
+                Table(
+                  columnWidths: const {
+                    0: FlexColumnWidth(2),
+                    1: FlexColumnWidth(1),
+                    2: FlexColumnWidth(1),
+                    3: FlexColumnWidth(1),
+                  },
+                  children: [
+                    TableRow(
+                      decoration: BoxDecoration(color: Colors.grey[200]),
+                      children: const [
+                        Padding(
+                          padding: EdgeInsets.symmetric(vertical: 4),
+                          child: Text('Producto', style: TextStyle(fontWeight: FontWeight.bold)),
+                        ),
+                        Padding(
+                          padding: EdgeInsets.symmetric(vertical: 4),
+                          child: Text('Cant.', style: TextStyle(fontWeight: FontWeight.bold)),
+                        ),
+                        Padding(
+                          padding: EdgeInsets.symmetric(vertical: 4),
+                          child: Text('P. Unit.', style: TextStyle(fontWeight: FontWeight.bold)),
+                        ),
+                        Padding(
+                          padding: EdgeInsets.symmetric(vertical: 4),
+                          child: Text('Subtotal', style: TextStyle(fontWeight: FontWeight.bold)),
+                        ),
+                      ],
+                    ),
+                    ...sale.items.map((item) => TableRow(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Text(item.productName),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Text('${item.quantity}'),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Text('\$${item.unitPrice % 1 == 0 ? item.unitPrice.toStringAsFixed(0) : item.unitPrice.toStringAsFixed(2)}'),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Text('\$${item.subtotal % 1 == 0 ? item.subtotal.toStringAsFixed(0) : item.subtotal.toStringAsFixed(2)}'),
+                        ),
+                      ],
+                    )),
+                  ],
+                ),
+                const SizedBox(height: 16),
                 Row(
                   children: [
                     Icon(
@@ -210,6 +258,10 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
                     ),
                   ],
                 ),
+                if (sale.notes != null && sale.notes!.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  _buildDetailRow('Notas', sale.notes!),
+                ],
               ],
             ),
           ),
